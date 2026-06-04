@@ -95,12 +95,18 @@ function draw() {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawGrid(ctx, canvas.width, canvas.height);
 
-    // Draw Walls
+     // Draw Walls
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#222';
     walls.forEach(w => {
+        if (w.destructible) {
+            const alpha = w.hp / 3;
+            ctx.fillStyle = `rgba(139, 90, 43, ${alpha + 0.3})`;
+            ctx.strokeStyle = `rgba(160, 110, 60, ${alpha + 0.2})`;
+        } else {
+            ctx.fillStyle = '#444';
+            ctx.strokeStyle = '#666';
+        }
         ctx.fillRect(w.x, w.y, w.w, w.h);
-        ctx.strokeStyle = '#444';
         ctx.lineWidth = 1;
         ctx.strokeRect(w.x, w.y, w.w, w.h);
     });
