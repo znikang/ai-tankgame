@@ -1,16 +1,222 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Tank Wars - Testing</title>
+    <title>Tank Wars</title>
     <style>
         body { margin: 0; background: #222; color: white; font-family: sans-serif; overflow: hidden; }
         canvas { border: 2px solid #555; display: block; margin: 20px auto; background: #000; }
         #status { text-align: center; }
+
+        /* ── Auth overlay (login panel) ── */
+        #authOverlay {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 1000;
+        }
+        #authOverlay.hidden { display: none; }
+        #authPanel {
+            width: 340px;
+            background: #141418;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 0;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        #authPanel .auth-header {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 18px 10px;
+            border-bottom: 1px solid #2a2a2e;
+        }
+        #authPanel .auth-header h2 { margin: 0; font-size: 18px; color: #fff; }
+        #authPanel .close-btn {
+            background: none; border: none; color: #888; font-size: 20px;
+            cursor: pointer; line-height: 1; padding: 0 4px;
+        }
+        #authPanel .close-btn:hover { color: #fff; }
+
+        /* Tabs */
+        #authTabs {
+            display: flex; border-bottom: 1px solid #2a2a2e;
+        }
+        #authTabs button {
+            flex: 1; padding: 10px 0; background: none; border: none;
+            color: #777; font-size: 14px; cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        #authTabs button.active { color: #fff; border-bottom-color: #00aa00; }
+        #authTabs button:hover { color: #ccc; }
+
+        /* Forms */
+        .auth-form { padding: 18px; display: none; }
+        .auth-form.active { display: block; }
+        .auth-form input {
+            width: 100%; box-sizing: border-box; padding: 9px 12px;
+            margin-bottom: 10px; background: #1e1e22; border: 1px solid #333;
+            border-radius: 4px; color: #fff; font-size: 14px;
+        }
+        .auth-form input:focus { outline: none; border-color: #00aa00; }
+        .auth-form .btn-primary {
+            width: 100%; padding: 10px; background: #00aa00; border: none;
+            border-radius: 4px; color: #fff; font-size: 14px; font-weight: 600;
+            cursor: pointer; margin-top: 4px;
+        }
+        .auth-form .btn-primary:hover { background: #00cc00; }
+        .auth-form .btn-primary:active { background: #008800; }
+
+        #authError {
+            padding: 0 18px 14px; min-height: 20px;
+            color: #cc3333; font-size: 13px;
+        }
+
+        /* ── Logged-in status bar ── */
+        #loggedInBar {
+            position: fixed; top: 8px; left: 12px;
+            display: none; align-items: center; gap: 10px;
+            background: rgba(10, 10, 12, 0.85);
+            padding: 6px 14px; border-radius: 6px;
+            border: 1px solid #2a2a2e; z-index: 500;
+            font-size: 13px;
+        }
+        #loggedInBar.visible { display: flex; }
+        #loggedInBar .player-name { color: #fff; font-weight: 600; }
+        #loggedInBar button {
+            background: none; border: 1px solid #444; color: #ccc;
+            padding: 4px 10px; border-radius: 4px; cursor: pointer;
+            font-size: 12px;
+        }
+        #loggedInBar button:hover { border-color: #00aa00; color: #fff; }
+        #loggedInBar .btn-logout { border-color: #662222; color: #cc3333; }
+        #loggedInBar .btn-logout:hover { background: #cc3333; color: #fff; }
+
+        /* ── Modal overlay ── */
+        .modal-backdrop {
+            position: fixed; inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: none; align-items: center; justify-content: center;
+            z-index: 900;
+        }
+        .modal-backdrop.visible { display: flex; }
+        .modal-box {
+            background: #141418; border: 1px solid #333;
+            border-radius: 8px; padding: 24px;
+            min-width: 320px; max-width: 420px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        }
+        .modal-box h3 { margin: 0 0 16px; font-size: 18px; color: #fff; }
+        .modal-box .modal-close {
+            float: right; background: none; border: none; color: #888;
+            font-size: 18px; cursor: pointer;
+        }
+        .modal-box .modal-close:hover { color: #fff; }
+
+        /* Stats table */
+        #statsTable { width: 100%; border-collapse: collapse; }
+        #statsTable td {
+            padding: 8px 10px; border-bottom: 1px solid #2a2a2e;
+            font-size: 14px;
+        }
+        #statsTable td:first-child { color: #888; }
+        #statsTable td:last-child { color: #fff; font-weight: 600; text-align: right; }
+
+        /* Leaderboard */
+        #leaderboardSelect {
+            background: #1e1e22; border: 1px solid #333; color: #fff;
+            padding: 6px 10px; border-radius: 4px; font-size: 13px;
+            margin-bottom: 12px;
+        }
+        #leaderboardList { list-style: none; padding: 0; margin: 0; }
+        #leaderboardList li {
+            display: flex; justify-content: space-between;
+            padding: 7px 10px; border-bottom: 1px solid #2a2a2e;
+            font-size: 14px;
+        }
+        #leaderboardList li .rank { color: #00aa00; font-weight: 700; width: 28px; }
+        #leaderboardList li .name { flex: 1; color: #fff; padding-left: 6px; }
+        #leaderboardList li .value { color: #ccc; font-weight: 600; }
+
+        /* Toast */
+        #toast {
+            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+            background: #1e1e22; border: 1px solid #00aa00; color: #fff;
+            padding: 10px 24px; border-radius: 6px; font-size: 14px;
+            z-index: 2000; opacity: 0; transition: opacity 0.3s;
+            pointer-events: none;
+        }
+        #toast.visible { opacity: 1; }
     </style>
 </head>
 <body>
     <div id="status">Connecting to Tank Server...</div>
     <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <!-- Login / Register overlay -->
+    <div id="authOverlay">
+        <div id="authPanel">
+            <div class="auth-header">
+                <h2>Tank Wars</h2>
+                <button class="close-btn" id="closeAuthBtn" title="Play anonymously">✕</button>
+            </div>
+            <div id="authTabs">
+                <button class="active" data-tab="login">Login</button>
+                <button data-tab="register">Register</button>
+            </div>
+            <form class="auth-form active" id="loginForm">
+                <input type="text" id="loginUsername" placeholder="Username" autocomplete="username" required>
+                <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password" required>
+                <button type="submit" class="btn-primary">Login</button>
+            </form>
+            <form class="auth-form" id="registerForm">
+                <input type="text" id="regUsername" placeholder="Username" autocomplete="username" required>
+                <input type="password" id="regPassword" placeholder="Password" autocomplete="new-password" required>
+                <input type="text" id="regDisplayName" placeholder="Display Name" autocomplete="name" required>
+                <button type="submit" class="btn-primary">Register</button>
+            </form>
+            <div id="authError"></div>
+        </div>
+    </div>
+
+    <!-- Logged-in status bar -->
+    <div id="loggedInBar">
+        <span class="player-name" id="playerDisplayName"></span>
+        <button id="statsBtn">Stats</button>
+        <button id="leaderboardBtn">Leaderboard</button>
+        <button class="btn-logout" id="logoutBtn">Logout</button>
+    </div>
+
+    <!-- Stats modal -->
+    <div class="modal-backdrop" id="statsModal">
+        <div class="modal-box">
+            <button class="modal-close" id="closeStatsBtn">✕</button>
+            <h3>Your Stats</h3>
+            <table id="statsTable">
+                <tr><td>Score</td><td id="statScore">—</td></tr>
+                <tr><td>Wins</td><td id="statWins">—</td></tr>
+                <tr><td>Losses</td><td id="statLosses">—</td></tr>
+                <tr><td>Kills</td><td id="statKills">—</td></tr>
+                <tr><td>Deaths</td><td id="statDeaths">—</td></tr>
+                <tr><td>Shots Fired</td><td id="statShots">—</td></tr>
+            </table>
+        </div>
+    </div>
+
+    <!-- Leaderboard modal -->
+    <div class="modal-backdrop" id="leaderboardModal">
+        <div class="modal-box">
+            <button class="modal-close" id="closeLeaderboardBtn">✕</button>
+            <h3>Leaderboard</h3>
+            <select id="leaderboardSelect">
+                <option value="score">Score</option>
+                <option value="wins">Wins</option>
+                <option value="kills">Kills</option>
+            </select>
+            <ul id="leaderboardList"></ul>
+        </div>
+    </div>
+
+    <!-- Toast notification -->
+    <div id="toast"></div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="client.js"></script>
