@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tank Wars - Testing</title>
+    <style>
+        body { margin: 0; background: #222; color: white; font-family: sans-serif; overflow: hidden; }
+        canvas { border: 2px solid #555; display: block; margin: 20px auto; background: #000; }
+        #status { text-align: center; }
+    </style>
+</head>
+<body>
+    <div id="status">Connecting to Tank Server...</div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+</html>
