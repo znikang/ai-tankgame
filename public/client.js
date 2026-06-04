@@ -8,10 +8,26 @@ let bullets = [];
 let walls = [];
 let explosions = [];
 let myId = null;
+let lastShotTime = 0; // For shoot feedback
 
 socket.on('connect', () => {
     myId = socket.id;
-    statusDiv.innerText = "Connected! [Arrows] to Drive | [Space] to Fire";
+    statusDiv.innerText = "Connected! [WASD] to Drive | [Space] to Fire | 🤖 AI Tanks: 3";
+});
+
+socket.on('gameState', (state) => {
+    players = state.players;
+    bullets = state.bullets;
+    walls = state.walls;
+    explosions = state.explosions;
+
+    // Count AI tanks and update status
+    let aiCount = 0;
+    for (let id in players) {
+        if (players[id].isAI) aiCount++;
+    }
+    const humanCount = Object.keys(players).length - aiCount;
+    statusDiv.innerText = `👤 Humans: ${humanCount} | 🤖 AI: ${aiCount} | [WASD] Drive | [Space] Fire`;
 });
 
 socket.on('initMap', (serverWalls) => {
@@ -33,19 +49,25 @@ socket.on('gameState', (state) => {
 const inputState = { up: false, down: false, left: false, right: false };
 
 document.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowUp')    inputState.up = true;
-    if (e.key === 'ArrowDown')  inputState.down = true;
-    if (e.key === 'ArrowLeft')  inputState.left = true;
-    if (e.key === 'ArrowRight') inputState.right = true;
-    if (e.code === 'Space') socket.emit('fire');
+    const key = e.key.toLowerCase();
+    if (key === 'w') inputState.up = true;
+    if (key === 's') inputState.down = true;
+    if (key === 'a') inputState.left = true;
+    if (key === 'd') inputState.right = true;
+    if (e.code === 'Space') {
+        e.preventDefault();
+        socket.emit('fire');
+        lastShotTime = Date.now();
+    }
     socket.emit('inputUpdate', inputState);
 });
 
 document.addEventListener('keyup', (e) => {
-    if (e.key === 'ArrowUp')    inputState.up = false;
-    if (e.key === 'ArrowDown')  inputState.down = false;
-    if (e.key === 'ArrowLeft')  inputState.left = false;
-    if (e.key === 'ArrowRight') inputState.right = false;
+    const key = e.key.toLowerCase();
+    if (key === 'w') inputState.up = false;
+    if (key === 's') inputState.down = false;
+    if (key === 'a') inputState.left = false;
+    if (key === 'd') inputState.right = false;
     socket.emit('inputUpdate', inputState);
 });
 
@@ -130,13 +152,33 @@ function draw() {
         // HP Bar
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(p.x - 15, p.y - 30, 30, 4);
-        ctx.fillStyle = '#00ff00';
+        ctx.fillStyle = p.hp > 60 ? '#00ff00' : (p.hp > 30 ? '#ffaa00' : '#ff0000');
         ctx.fillRect(p.x - 15, p.y - 30, (p.hp / 100) * 30, 4);
 
         // ID
         ctx.fillStyle = 'white';
         ctx.font = '10px monospace';
         ctx.fillText(id.substring(0, 5), p.x - 15, p.y - 35);
+    }
+
+    // Draw last shot muzzle flash (my tank only)
+    const elapsed = Date.now() - lastShotTime;
+    if (elapsed < 150) {
+        const alpha = 1 - elapsed / 150;
+        const flashRadius = 8 + elapsed / 150 * 12;
+        ctx.save();
+        for (let id in players) {
+            const p = players[id];
+            if (id !== myId) continue;
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+            ctx.beginPath();
+            ctx.arc(22, 0, flashRadius, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 200, 50, ${alpha * 0.7})`;
+            ctx.fill();
+            ctx.restore();
+            break;
+        }
     }
 }
 
