@@ -3,13 +3,20 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const statusDiv = document.getElementById('status');
 
+// Map dimensions (server-side)
+const MAP_W = 1600;
+const MAP_H = 1200;
+
 let players = {};
 let bullets = [];
 let walls = [];
 let explosions = [];
 let myId = null;
-let lastShotTime = 0; // For shoot feedback
-let authToken = localStorage.getItem('tank_token'); // persisted token
+let lastShotTime = 0;
+let authToken = localStorage.getItem('tank_token');
+
+// ── Camera ──
+let cameraX = 0, cameraY = 0, cameraScale = 1;
 
 // ── Auth / UI DOM refs ──
 const authOverlay     = document.getElementById('authOverlay');
@@ -22,12 +29,11 @@ const loggedInBar     = document.getElementById('loggedInBar');
 const playerDisplayName = document.getElementById('playerDisplayName');
 const statsModal      = document.getElementById('statsModal');
 const leaderboardModal= document.getElementById('leaderboardModal');
-const statsTable      = document.getElementById('statsTable');
 const leaderboardList = document.getElementById('leaderboardList');
 const leaderboardSelect = document.getElementById('leaderboardSelect');
 const toast           = document.getElementById('toast');
 
-let currentDisplayName = null; // set after successful login
+let currentDisplayName = null;
 
 // ── Tab switching ──
 authTabs.addEventListener('click', (e) => {
@@ -39,7 +45,6 @@ authTabs.addEventListener('click', (e) => {
     authError.textContent = '';
 });
 
-// ── Close auth panel (anonymous play) ──
 closeAuthBtn.addEventListener('click', () => {
     authOverlay.classList.add('hidden');
     loggedInBar.classList.remove('visible');
@@ -47,7 +52,6 @@ closeAuthBtn.addEventListener('click', () => {
     authToken = null;
 });
 
-// ── Login form ──
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const username = document.getElementById('loginUsername').value.trim();
@@ -56,7 +60,6 @@ loginForm.addEventListener('submit', (e) => {
     socket.emit('auth:login', { username, password });
 });
 
-// ── Register form ──
 registerForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const username = document.getElementById('regUsername').value.trim();
@@ -66,37 +69,24 @@ registerForm.addEventListener('submit', (e) => {
     socket.emit('auth:register', { username, password, displayName });
 });
 
-// ── Stats modal ──
 document.getElementById('statsBtn').addEventListener('click', () => {
     if (!authToken) return;
     socket.emit('stats:me', { token: authToken });
     statsModal.classList.add('visible');
 });
-document.getElementById('closeStatsBtn').addEventListener('click', () => {
-    statsModal.classList.remove('visible');
-});
-statsModal.addEventListener('click', (e) => {
-    if (e.target === statsModal) statsModal.classList.remove('visible');
-});
+document.getElementById('closeStatsBtn').addEventListener('click', () => statsModal.classList.remove('visible'));
+statsModal.addEventListener('click', (e) => { if (e.target === statsModal) statsModal.classList.remove('visible'); });
 
-// ── Leaderboard modal ──
 document.getElementById('leaderboardBtn').addEventListener('click', () => {
-    const type = leaderboardSelect.value;
-    socket.emit('leaderboard:query', { type, limit: 10 });
+    socket.emit('leaderboard:query', { type: leaderboardSelect.value, limit: 10 });
     leaderboardModal.classList.add('visible');
 });
-document.getElementById('closeLeaderboardBtn').addEventListener('click', () => {
-    leaderboardModal.classList.remove('visible');
-});
-leaderboardModal.addEventListener('click', (e) => {
-    if (e.target === leaderboardModal) leaderboardModal.classList.remove('visible');
-});
+document.getElementById('closeLeaderboardBtn').addEventListener('click', () => leaderboardModal.classList.remove('visible'));
+leaderboardModal.addEventListener('click', (e) => { if (e.target === leaderboardModal) leaderboardModal.classList.remove('visible'); });
 leaderboardSelect.addEventListener('change', () => {
-    const type = leaderboardSelect.value;
-    socket.emit('leaderboard:query', { type, limit: 10 });
+    socket.emit('leaderboard:query', { type: leaderboardSelect.value, limit: 10 });
 });
 
-// ── Logout ──
 document.getElementById('logoutBtn').addEventListener('click', () => {
     if (!authToken) return;
     socket.emit('auth:logout', { token: authToken });
@@ -107,7 +97,6 @@ document.getElementById('logoutBtn').addEventListener('click', () => {
     authOverlay.classList.remove('hidden');
 });
 
-// ── Toast helper ──
 let toastTimer = null;
 function showToast(msg) {
     toast.textContent = msg;
@@ -127,7 +116,7 @@ socket.on('auth:register', (data) => {
         authOverlay.classList.add('hidden');
         authError.textContent = '';
     } else {
-        authError.textContent = data.error || 'Registration failed';
+        authError.textContent = data.message || 'Registration failed';
     }
 });
 
@@ -141,7 +130,7 @@ socket.on('auth:login', (data) => {
         authOverlay.classList.add('hidden');
         authError.textContent = '';
     } else {
-        authError.textContent = data.error || 'Login failed';
+        authError.textContent = data.message || 'Login failed';
     }
 });
 
@@ -153,7 +142,6 @@ socket.on('auth:resume', (data) => {
         playerDisplayName.textContent = currentDisplayName;
         authOverlay.classList.add('hidden');
     } else {
-        // Token invalid — show login panel
         authOverlay.classList.remove('hidden');
     }
 });
@@ -174,38 +162,34 @@ socket.on('stats:me', (data) => {
     document.getElementById('statLosses').textContent = data.losses ?? '—';
     document.getElementById('statKills').textContent  = data.kills ?? '—';
     document.getElementById('statDeaths').textContent = data.deaths ?? '—';
-    document.getElementById('statShots').textContent  = data.shotsFired ?? '—';
+    document.getElementById('statShots').textContent  = data.shots_fired ?? '—';
 });
 
 socket.on('stats:query', (data) => {
-    // Show stats for queried player
     document.getElementById('statScore').textContent  = data.score ?? '—';
     document.getElementById('statWins').textContent   = data.wins ?? '—';
     document.getElementById('statLosses').textContent = data.losses ?? '—';
     document.getElementById('statKills').textContent  = data.kills ?? '—';
     document.getElementById('statDeaths').textContent = data.deaths ?? '—';
-    document.getElementById('statShots').textContent  = data.shotsFired ?? '—';
+    document.getElementById('statShots').textContent  = data.shots_fired ?? '—';
 });
 
 // ── Socket.IO Leaderboard events ──
 socket.on('leaderboard:query', (data) => {
     leaderboardList.innerHTML = '';
-    if (!data.players || data.players.length === 0) {
+    if (!data.results || data.results.length === 0) {
         leaderboardList.innerHTML = '<li><span class="name">No players yet</span></li>';
         return;
     }
-    data.players.forEach((entry, i) => {
+    data.results.forEach((entry, i) => {
         const li = document.createElement('li');
-        li.innerHTML = `<span class="rank">${i + 1}</span><span class="name">${entry.displayName || entry.username}</span><span class="value">${entry[data.type] ?? entry.score ?? '—'}</span>`;
+        li.innerHTML = `<span class="rank">${i + 1}</span><span class="name">${entry.username}</span><span class="value">${entry.score}</span>`;
         leaderboardList.appendChild(li);
     });
 });
 
 // ── Socket.IO Account events ──
-socket.on('account:changePassword', (data) => {
-    showToast(data.message || 'Password updated');
-});
-
+socket.on('account:changePassword', (data) => { showToast(data.message || 'Password updated'); });
 socket.on('account:delete', (data) => {
     showToast(data.message || 'Account deleted');
     loggedInBar.classList.remove('visible');
@@ -216,18 +200,12 @@ socket.on('account:delete', (data) => {
 
 // ── Socket.IO Game stats update ──
 socket.on('game:statsUpdate', (data) => {
-    let msg = '';
-    if (data.kills) msg += `+${data.kills} Kill${data.kills > 1 ? 's' : ''}`;
-    if (data.score) msg += ` ${data.score} pts`;
-    if (msg) showToast(msg);
+    if (data.kills) showToast(`+${data.kills} Kill${data.kills > 1 ? 's' : ''}, Score: ${data.score}`);
 });
 
-// ── Resume session on connect (auto) ──
+// ── Resume session on connect ──
 socket.on('connect', () => {
     myId = socket.id;
-    statusDiv.innerText = "Connected! [WASD] to Drive | [Space] to Fire | 🤖 AI Tanks: 3";
-
-    // Auto-resume if we have a saved token
     if (authToken) {
         socket.emit('auth:resume', { token: authToken });
     }
@@ -239,30 +217,15 @@ socket.on('gameState', (state) => {
     walls = state.walls;
     explosions = state.explosions;
 
-    // Count AI tanks and update status
     let aiCount = 0;
-    for (let id in players) {
-        if (players[id].isAI) aiCount++;
-    }
+    for (let id in players) { if (players[id].isAI) aiCount++; }
     const humanCount = Object.keys(players).length - aiCount;
     statusDiv.innerText = `👤 Humans: ${humanCount} | 🤖 AI: ${aiCount} | [WASD] Drive | [Space] Fire`;
 });
 
-socket.on('initMap', (serverWalls) => {
-    walls = serverWalls;
-});
-
+socket.on('initMap', (serverWalls) => { walls = serverWalls; });
 socket.on('playerJoined', (p) => console.log("Player joined:", p.id));
-socket.on('playerLeft', (id) => {
-    delete players[id];
-});
-
-socket.on('gameState', (state) => {
-    players = state.players;
-    bullets = state.bullets;
-    walls = state.walls;
-    explosions = state.explosions;
-});
+socket.on('playerLeft', (id) => { delete players[id]; });
 
 const inputState = { up: false, down: false, left: false, right: false };
 
@@ -289,31 +252,56 @@ document.addEventListener('keyup', (e) => {
     socket.emit('inputUpdate', inputState);
 });
 
-function drawGrid(ctx, width, height) {
+// ── Resize canvas to fit window ──
+function resizeCanvas() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    canvas.width = w;
+    canvas.height = h;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function draw() {
+    // Calculate camera: follow my player, fit map to screen
+    const myPlayer = players[myId];
+    let targetCX = MAP_W / 2;
+    let targetCY = MAP_H / 2;
+    if (myPlayer) {
+        targetCX = myPlayer.x;
+        targetCY = myPlayer.y;
+    }
+    cameraX += (targetCX - cameraX) * 0.1;
+    cameraY += (targetCY - cameraY) * 0.1;
+
+    const scaleX = canvas.width / MAP_W;
+    const scaleY = canvas.height / MAP_H;
+    cameraScale = Math.min(scaleX, scaleY);
+
+    ctx.fillStyle = '#0a0a0c';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.save();
+    ctx.scale(cameraScale, cameraScale);
+    ctx.translate(-cameraX * cameraScale + canvas.width / (2 * cameraScale) * (1 - cameraScale) * 0, 0);
+
+    // Simpler transform: center camera on view
+    const offsetX = canvas.width / cameraScale / 2 - cameraX;
+    const offsetY = canvas.height / cameraScale / 2 - cameraY;
+    ctx.setTransform(cameraScale, 0, 0, cameraScale, offsetX * cameraScale, offsetY * cameraScale);
+
+    // Grid
     ctx.strokeStyle = '#1a1a1d';
     ctx.lineWidth = 1;
     const step = 40;
-    for (let x = 0; x <= width; x += step) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
+    for (let x = 0; x <= MAP_W; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, MAP_H); ctx.stroke();
     }
-    for (let y = 0; y <= height; y += step) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
+    for (let y = 0; y <= MAP_H; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(MAP_W, y); ctx.stroke();
     }
-}
 
-function draw() {
-    // Background
-    ctx.fillStyle = '#0a0a0c'; 
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawGrid(ctx, canvas.width, canvas.height);
-
-     // Draw Walls
+    // Walls
     ctx.shadowBlur = 0;
     walls.forEach(w => {
         if (w.destructible) {
@@ -329,7 +317,7 @@ function draw() {
         ctx.strokeRect(w.x, w.y, w.w, w.h);
     });
 
-    // Draw Bullets (Neon Glow)
+    // Bullets
     ctx.shadowBlur = 15;
     ctx.shadowColor = 'yellow';
     ctx.fillStyle = '#ffff00';
@@ -340,7 +328,7 @@ function draw() {
     });
     ctx.shadowBlur = 0;
 
-    // Draw Explosions
+    // Explosions
     explosions.forEach(ex => {
         ctx.beginPath();
         ctx.arc(ex.x, ex.y, (1 - ex.life) * 30, 0, Math.PI * 2);
@@ -349,7 +337,7 @@ function draw() {
         ctx.stroke();
     });
 
-    // Draw Players
+    // Players
     for (let id in players) {
         const p = players[id];
         if (p.hp <= 0) continue;
@@ -357,8 +345,7 @@ function draw() {
         ctx.save();
         ctx.translate(p.x, p.y);
         ctx.rotate(p.angle);
-        
-        // Body with Gradient
+
         const gradient = ctx.createRadialGradient(0, 0, 5, 0, 0, 15);
         gradient.addColorStop(0, p.color);
         gradient.addColorStop(1, '#000');
@@ -367,8 +354,7 @@ function draw() {
         ctx.strokeStyle = 'rgba(255,255,255,0.3)';
         ctx.lineWidth = 1;
         ctx.strokeRect(-15, -15, 30, 30);
-        
-        // Turret
+
         ctx.fillStyle = '#fff';
         ctx.fillRect(0, -4, 20, 8);
         ctx.restore();
@@ -379,31 +365,29 @@ function draw() {
         ctx.fillStyle = p.hp > 60 ? '#00ff00' : (p.hp > 30 ? '#ffaa00' : '#ff0000');
         ctx.fillRect(p.x - 15, p.y - 30, (p.hp / 100) * 30, 4);
 
-        // ID
+        // Name / ID
         ctx.fillStyle = 'white';
         ctx.font = '10px monospace';
-        ctx.fillText(id.substring(0, 5), p.x - 15, p.y - 35);
+        const label = p.username || id.substring(0, 5);
+        ctx.fillText(label, p.x - 15, p.y - 35);
     }
 
-    // Draw last shot muzzle flash (my tank only)
+    // Muzzle flash
     const elapsed = Date.now() - lastShotTime;
-    if (elapsed < 150) {
+    if (elapsed < 150 && myPlayer) {
         const alpha = 1 - elapsed / 150;
         const flashRadius = 8 + elapsed / 150 * 12;
         ctx.save();
-        for (let id in players) {
-            const p = players[id];
-            if (id !== myId) continue;
-            ctx.translate(p.x, p.y);
-            ctx.rotate(p.angle);
-            ctx.beginPath();
-            ctx.arc(22, 0, flashRadius, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(255, 200, 50, ${alpha * 0.7})`;
-            ctx.fill();
-            ctx.restore();
-            break;
-        }
+        ctx.translate(myPlayer.x, myPlayer.y);
+        ctx.rotate(myPlayer.angle);
+        ctx.beginPath();
+        ctx.arc(22, 0, flashRadius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 200, 50, ${alpha * 0.7})`;
+        ctx.fill();
+        ctx.restore();
     }
+
+    ctx.restore();
 }
 
 function gameLoop() {
