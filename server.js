@@ -92,21 +92,21 @@ const GRID = 40;
 const WEAPON_TYPES = ['basic', 'shotgun', 'sniper', 'freeze', 'accel'];
 
 const WEAPON_CONFIG = {
-  basic:    { damage: 35, fireRate: 400, bulletSpeed: 450, color: '#FFFF00', radius: 4 },
-  shotgun:  { damage: 20, fireRate: 800, bulletSpeed: 400, color: '#FF8800', radius: 5, count: 5, spread: [-30, 30] },
-  sniper:   { damage: 50, fireRate: 800, bulletSpeed: 500, color: '#FF0000', radius: 6 },
-  freeze:   { damage: 10, fireRate: 400, bulletSpeed: 450, color: '#00FFFF', radius: 4, freeze: true },
-  accel:    { damage: 15, fireRate: 400, bulletSpeed: 900, color: '#00FF00', radius: 3, accelerated: true },
+    basic:    { damage: 35, fireRate: 400, bulletSpeed: 450, color: '#FFFF00', radius: 4 },
+    shotgun:  { damage: 20, fireRate: 800, bulletSpeed: 400, color: '#FF8800', radius: 5, count: 5, spread: [-30, 30] },
+    sniper:   { damage: 50, fireRate: 800, bulletSpeed: 500, color: '#FF0000', radius: 6 },
+    freeze:   { damage: 10, fireRate: 400, bulletSpeed: 450, color: '#00FFFF', radius: 4, freeze: true },
+    accel:    { damage: 15, fireRate: 400, bulletSpeed: 900, color: '#00FF00', radius: 3, accelerated: true },
 };
 
 const SPECIAL_WEAPONS = ['shotgun', 'sniper', 'freeze', 'accel'];
 
 const WEAPON_NAMES = {
-  basic: '基础武器',
-  shotgun: '散弹枪',
-  sniper: '狙击枪',
-  freeze: '冰冻枪',
-  accel: '加速弹',
+    basic: '基础武器',
+    shotgun: '散弹枪',
+    sniper: '狙击枪',
+    freeze: '冰冻枪',
+    accel: '加速弹',
 };
 
 let weaponDrops = [];
