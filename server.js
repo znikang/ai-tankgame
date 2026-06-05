@@ -254,7 +254,10 @@ function spawnAITanks(count) {
             color: '#ff3333',
             isMoving: false,
             isAI: true,
-            strafeDir: 1
+            strafeDir: 1,
+            weapon: 'basic',
+            lastFire: 0,
+            frozenUntil: 0
         };
     }
     console.log(`Spawned ${count} AI tanks`);
@@ -385,7 +388,10 @@ io.on('connection', (socket) => {
         targetY: 0,
         hp: 100,
         color: '#' + (Math.floor(Math.random() * 0xFFFFFF)).toString(16).padStart(6, '0'),
-        isMoving: false
+        isMoving: false,
+        weapon: 'basic',
+        lastFire: 0,
+        frozenUntil: 0
     };
 
     io.emit('playerJoined', players[socket.id]);
