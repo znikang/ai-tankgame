@@ -850,6 +850,10 @@ setInterval(() => {
         if (!p || p.hp <= 0) continue;
 
         if (p.isAI) {
+            // Check freeze status
+            const isFrozen = Date.now() < p.frozenUntil;
+            const speedMult = isFrozen ? 0.5 : 1;
+
             // AI targets humans first; if no humans, targets other AIs
             let target = getAITarget(p, true);
 
@@ -859,19 +863,19 @@ setInterval(() => {
                 if (distToTarget > 300) {
                     p.angle = Math.atan2(target.y - p.y, target.x - p.x);
                     p.isMoving = true;
-                    moveTank(p, p.angle, 1);
+                    moveTank(p, p.angle, speedMult);
                 } else if (distToTarget > 120) {
                     const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
                     p.angle = angleToTarget;
                     const strafeAngle = angleToTarget + (p.strafeDir || 1) * Math.PI / 2.5;
                     p.isMoving = true;
-                    moveTank(p, strafeAngle, 0.7);
+                    moveTank(p, strafeAngle, 0.7 * speedMult);
                 } else {
                     const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
                     p.angle = angleToTarget;
                     const backAngle = angleToTarget + Math.PI;
                     p.isMoving = true;
-                    moveTank(p, backAngle, 1);
+                    moveTank(p, backAngle, speedMult);
                 }
 
                 aiFire(p, target);
