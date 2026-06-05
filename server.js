@@ -932,7 +932,7 @@ setInterval(() => {
             if (!p || p.hp <= 0 || pid === b.ownerId) continue;
             const dist = Math.sqrt((b.x - p.x) ** 2 + (b.y - p.y) ** 2);
             if (dist < 20) {
-                p.hp -= 35;
+                p.hp -= b.damage;
                 explosions.push({ x: b.x, y: b.y, life: 1.0 });
                 bullets.splice(i, 1);
 
