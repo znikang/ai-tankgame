@@ -900,8 +900,8 @@ setInterval(() => {
     // Bullet logic
     for (let i = bullets.length - 1; i >= 0; i--) {
         const b = bullets[i];
-        b.x += Math.cos(b.angle) * BULLET_SPEED * DT;
-        b.y += Math.sin(b.angle) * BULLET_SPEED * DT;
+        b.x += Math.cos(b.angle) * b.speed * DT;
+        b.y += Math.sin(b.angle) * b.speed * DT;
 
         if (b.x < 0 || b.x > MAP_W || b.y < 0 || b.y > MAP_H) {
             bullets.splice(i, 1);
