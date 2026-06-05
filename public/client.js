@@ -247,6 +247,11 @@ socket.on('gameState', (state) => {
         }
     }
 
+    // Play explosion sound for new explosions
+    if (explosions.length > 0) {
+        playSound('explosion');
+    }
+
     // Spawn floating text for player deaths
     for (let id in state.players) {
         const newP = state.players[id];
@@ -282,6 +287,7 @@ function updateWeaponUI(weaponType) {
 socket.on('weaponPickup', (data) => {
     updateWeaponUI(data.weapon);
     weaponPickupToast.textContent = '🎯 获得：' + data.name;
+    playSound('pickup');
     weaponPickupToast.classList.add('visible');
     clearTimeout(weaponPickupToast._timer);
     weaponPickupToast._timer = setTimeout(() => {
@@ -296,6 +302,7 @@ socket.on('earthquake', () => {
     void flash.offsetWidth; // force reflow
     flash.classList.add('active');
     setTimeout(() => flash.classList.remove('active'), 300);
+    playSound('earthquake');
 });
 
 const inputState = { up: false, down: false, left: false, right: false };
@@ -309,6 +316,7 @@ document.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
         e.preventDefault();
         socket.emit('fire');
+        playSound('fire-' + (players[myId]?.weapon || 'basic'));
         lastShotTime = Date.now();
     }
     socket.emit('inputUpdate', inputState);
@@ -557,3 +565,145 @@ function gameLoop() {
     requestAnimationFrame(gameLoop);
 }
 gameLoop();
+
+// ============================================================
+// Web Audio Sound Effects
+// ============================================================
+
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+}
+
+function playSound(name) {
+    if (!audioCtx) initAudio();
+    if (!audioCtx) return;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const now = audioCtx.currentTime;
+
+    switch (name) {
+        case 'fire-basic': {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass'; filter.frequency.value = 800; filter.Q.value = 2;
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(100, now + 0.05);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+            osc.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.08);
+            break;
+        }
+        case 'fire-shotgun': {
+            const bufferSize = audioCtx.sampleRate * 0.06;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.8;
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass'; filter.frequency.value = 1200; filter.Q.value = 0.5;
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            noise.start(now); noise.stop(now + 0.12);
+            break;
+        }
+        case 'fire-sniper': {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(1000, now);
+            osc.frequency.exponentialRampToValueAtTime(4000, now + 0.15);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.25);
+            break;
+        }
+        case 'fire-freeze': {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const lfo = audioCtx.createOscillator();
+            const lfoGain = audioCtx.createGain();
+            osc.type = 'sine'; osc.frequency.value = 200;
+            lfo.frequency.value = 8; lfoGain.gain.value = 30;
+            lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); lfo.start(now);
+            osc.stop(now + 0.12); lfo.stop(now + 0.12);
+            break;
+        }
+        case 'fire-accel': {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(600, now);
+            osc.frequency.exponentialRampToValueAtTime(2000, now + 0.06);
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.08);
+            break;
+        }
+        case 'explosion': {
+            const bufferSize = audioCtx.sampleRate * 0.3;
+            const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * Math.max(0, 1 - i / bufferSize);
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = buffer;
+            const gain = audioCtx.createGain();
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(500, now);
+            filter.frequency.exponentialRampToValueAtTime(20, now + 0.3);
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            noise.connect(filter); filter.connect(gain); gain.connect(audioCtx.destination);
+            noise.start(now); noise.stop(now + 0.3);
+            break;
+        }
+        case 'pickup': {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(400, now);
+            osc.frequency.linearRampToValueAtTime(800, now + 0.12);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.15);
+            break;
+        }
+        case 'earthquake': {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sawtooth'; osc.frequency.value = 50;
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.setValueAtTime(0.3, now + 0.3);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now); osc.stop(now + 0.5);
+            break;
+        }
+    }
+}
+
+// Initialize audio on first user interaction
+document.addEventListener('keydown', function initAudioOnce() {
+    initAudio();
+    document.removeEventListener('keydown', initAudioOnce);
+}, { once: true });
+document.addEventListener('click', function initAudioOnce() {
+    initAudio();
+    document.removeEventListener('click', initAudioOnce);
+}, { once: true });
