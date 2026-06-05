@@ -33,6 +33,10 @@ const leaderboardModal= document.getElementById('leaderboardModal');
 const leaderboardList = document.getElementById('leaderboardList');
 const leaderboardSelect = document.getElementById('leaderboardSelect');
 const toast           = document.getElementById('toast');
+const weaponHUD         = document.getElementById('weaponHUD');
+const weaponIcon        = document.getElementById('weaponIcon');
+const weaponName        = document.getElementById('weaponName');
+const weaponPickupToast = document.getElementById('weaponPickupToast');
 
 let currentDisplayName = null;
 
@@ -216,6 +220,10 @@ socket.on('gameState', (state) => {
     players = state.players;
     bullets = state.bullets;
     weaponDrops = state.weaponDrops || [];
+    // Update weapon UI for my player
+    if (myId && players[myId]) {
+        updateWeaponUI(players[myId].weapon || 'basic');
+    }
     walls = state.walls;
     explosions = state.explosions;
 
@@ -228,6 +236,24 @@ socket.on('gameState', (state) => {
 socket.on('initMap', (serverWalls) => { walls = serverWalls; });
 socket.on('playerJoined', (p) => console.log("Player joined:", p.id));
 socket.on('playerLeft', (id) => { delete players[id]; });
+
+const WEAPON_NAMES = { basic: '基础武器', shotgun: '散弹枪', sniper: '狙击枪', freeze: '冰冻枪', accel: '加速弹' };
+const WEAPON_COLORS = { basic: '#FFFF00', shotgun: '#FF8800', sniper: '#FF0000', freeze: '#00FFFF', accel: '#00FF00' };
+
+function updateWeaponUI(weaponType) {
+    weaponName.textContent = WEAPON_NAMES[weaponType] || weaponType;
+    weaponIcon.style.backgroundColor = WEAPON_COLORS[weaponType] || '#fff';
+}
+
+socket.on('weaponPickup', (data) => {
+    updateWeaponUI(data.weapon);
+    weaponPickupToast.textContent = '🎯 获得：' + data.name;
+    weaponPickupToast.classList.add('visible');
+    clearTimeout(weaponPickupToast._timer);
+    weaponPickupToast._timer = setTimeout(() => {
+        weaponPickupToast.classList.remove('visible');
+    }, 2000);
+});
 
 const inputState = { up: false, down: false, left: false, right: false };
 
