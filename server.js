@@ -1051,14 +1051,22 @@ setInterval(() => {
             const drop = weaponDrops[di];
             const dist = Math.sqrt((player.x - drop.x) ** 2 + (player.y - drop.y) ** 2);
             if (dist < 25) {
-                player.weapon = drop.type;
-                weaponDrops.splice(di, 1);
+                    weaponDrops.splice(di, 1);
 
-                const socket = io.sockets.sockets.get(pi);
-                if (socket) {
-                    socket.emit('weaponPickup', { weapon: drop.type, name: WEAPON_NAMES[drop.type] });
+                    if (drop.type === 'health') {
+                        player.hp = Math.min(100, player.hp + 30);
+                        const socket = io.sockets.sockets.get(pi);
+                        if (socket) {
+                            socket.emit('weaponPickup', { weapon: 'health', name: '+30 HP' });
+                        }
+                    } else {
+                        player.weapon = drop.type;
+                        const socket = io.sockets.sockets.get(pi);
+                        if (socket) {
+                            socket.emit('weaponPickup', { weapon: drop.type, name: WEAPON_NAMES[drop.type] });
+                        }
+                    }
                 }
-            }
         }
     }
 
