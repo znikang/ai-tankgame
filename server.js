@@ -699,19 +699,57 @@ io.on('connection', (socket) => {
 
     socket.on('fire', () => {
         const p = players[socket.id];
-        if (p && p.hp > 0) {
+        if (!p || p.hp <= 0) return;
+
+        const now = Date.now();
+        const config = WEAPON_CONFIG[p.weapon];
+        if (!config) return;
+        if (now - p.lastFire < config.fireRate) return;
+
+        p.lastFire = now;
+
+        // Track shots fired stat
+        if (loggedInUsername && redisAvailable) {
+            getPlayerStats(loggedInUsername).then(stats => {
+                updatePlayerStats(loggedInUsername, { shots_fired: stats.shots_fired + 1 });
+            });
+        }
+
+        // Create bullets based on weapon type
+        if (p.weapon === 'shotgun') {
+            // Shotgun: fan spread of 5 bullets
+            const spread = config.spread; // [-30, 30] degrees
+            const count = config.count;  // 5
+            for (let i = 0; i < count; i++) {
+                const angleDeg = spread[0] + (spread[1] - spread[0]) * (i / (count - 1));
+                const angleRad = p.angle + (angleDeg * Math.PI / 180);
+                bullets.push({
+                    x: p.x + Math.cos(angleRad) * 20,
+                    y: p.y + Math.sin(angleRad) * 20,
+                    angle: angleRad,
+                    ownerId: socket.id,
+                    damage: config.damage,
+                    speed: config.bulletSpeed,
+                    color: config.color,
+                    radius: config.radius,
+                    isFreeze: false,
+                    isAccelerated: false,
+                });
+            }
+        } else {
+            // All other weapons: single bullet
             bullets.push({
                 x: p.x + Math.cos(p.angle) * 20,
                 y: p.y + Math.sin(p.angle) * 20,
                 angle: p.angle,
-                ownerId: socket.id
+                ownerId: socket.id,
+                damage: config.damage,
+                speed: config.bulletSpeed,
+                color: config.color,
+                radius: config.radius,
+                isFreeze: config.freeze || false,
+                isAccelerated: config.accelerated || false,
             });
-
-            if (loggedInUsername && redisAvailable) {
-                getPlayerStats(loggedInUsername).then(stats => {
-                    updatePlayerStats(loggedInUsername, { shots_fired: stats.shots_fired + 1 });
-                });
-            }
         }
     });
 
