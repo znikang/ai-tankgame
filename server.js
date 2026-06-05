@@ -1001,6 +1001,26 @@ setInterval(() => {
         if (explosions[i].life <= 0) explosions.splice(i, 1);
     }
 
+    // Weapon pickup detection
+    for (let pi in players) {
+        const player = players[pi];
+        if (!player || player.hp <= 0) continue;
+
+        for (let di = weaponDrops.length - 1; di >= 0; di--) {
+            const drop = weaponDrops[di];
+            const dist = Math.sqrt((player.x - drop.x) ** 2 + (player.y - drop.y) ** 2);
+            if (dist < 25) {
+                player.weapon = drop.type;
+                weaponDrops.splice(di, 1);
+
+                const socket = io.sockets.sockets.get(pi);
+                if (socket) {
+                    socket.emit('weaponPickup', { weapon: drop.type, name: WEAPON_NAMES[drop.type] });
+                }
+            }
+        }
+    }
+
     // Emit gameState with auth info
     const authInfo = {};
     for (let id in players) {
@@ -1013,7 +1033,7 @@ setInterval(() => {
         }
     }
 
-    io.emit('gameState', { players, bullets, walls, explosions, auth: authInfo });
+    io.emit('gameState', { players, bullets, walls, explosions, weaponDrops, auth: authInfo });
 }, 16);
 
 server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
