@@ -794,18 +794,51 @@ function getAITarget(aiPlayer, includeAI = true) {
 
 // Helper: AI fires at target
 function aiFire(aiPlayer, target) {
+    const config = WEAPON_CONFIG[aiPlayer.weapon];
+    const now = Date.now();
+    if (now - aiPlayer.lastFire < config.fireRate) return;
+
     const angleToTarget = Math.atan2(target.y - aiPlayer.y, target.x - aiPlayer.x);
     let angleDiff = angleToTarget - aiPlayer.angle;
     while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
     while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
 
     if (Math.abs(angleDiff) < 0.3 && Math.random() < 0.06) {
-        bullets.push({
-            x: aiPlayer.x + Math.cos(aiPlayer.angle) * 20,
-            y: aiPlayer.y + Math.sin(aiPlayer.angle) * 20,
-            angle: aiPlayer.angle,
-            ownerId: aiPlayer.id
-        });
+        aiPlayer.lastFire = now;
+
+        if (aiPlayer.weapon === 'shotgun') {
+            const spread = config.spread;
+            const count = config.count;
+            for (let i = 0; i < count; i++) {
+                const angleDeg = spread[0] + (spread[1] - spread[0]) * (i / (count - 1));
+                const angleRad = aiPlayer.angle + (angleDeg * Math.PI / 180);
+                bullets.push({
+                    x: aiPlayer.x + Math.cos(angleRad) * 20,
+                    y: aiPlayer.y + Math.sin(angleRad) * 20,
+                    angle: angleRad,
+                    ownerId: aiPlayer.id,
+                    damage: config.damage,
+                    speed: config.bulletSpeed,
+                    color: config.color,
+                    radius: config.radius,
+                    isFreeze: false,
+                    isAccelerated: false,
+                });
+            }
+        } else {
+            bullets.push({
+                x: aiPlayer.x + Math.cos(aiPlayer.angle) * 20,
+                y: aiPlayer.y + Math.sin(aiPlayer.angle) * 20,
+                angle: aiPlayer.angle,
+                ownerId: aiPlayer.id,
+                damage: config.damage,
+                speed: config.bulletSpeed,
+                color: config.color,
+                radius: config.radius,
+                isFreeze: config.freeze || false,
+                isAccelerated: config.accelerated || false,
+            });
+        }
     }
 }
 
