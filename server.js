@@ -979,14 +979,23 @@ setInterval(() => {
                 const victimId = pid;
 
                 if (p.hp <= 0) {
-                    // Drop a random weapon at death position
-                    const dropType = SPECIAL_WEAPONS[Math.floor(Math.random() * SPECIAL_WEAPONS.length)];
-                    weaponDrops.push({
-                        x: p.x,
-                        y: p.y,
-                        type: dropType,
-                        color: WEAPON_CONFIG[dropType].color,
-                    });
+                    // Drop weapon or health pack (50/50)
+                    if (Math.random() < 0.5) {
+                        const dropType = SPECIAL_WEAPONS[Math.floor(Math.random() * SPECIAL_WEAPONS.length)];
+                        weaponDrops.push({
+                            x: p.x,
+                            y: p.y,
+                            type: dropType,
+                            color: WEAPON_CONFIG[dropType].color,
+                        });
+                    } else {
+                        weaponDrops.push({
+                            x: p.x,
+                            y: p.y,
+                            type: 'health',
+                            color: '#00FF00',
+                        });
+                    }
 
                     p.hp = 100;
                     const safe = findSafeSpawn();
