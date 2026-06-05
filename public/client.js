@@ -382,6 +382,21 @@ function draw() {
         ctx.fillRect(0, -4, 20, 8);
         ctx.restore();
 
+        // Freeze visual effect
+        if (p.frozenUntil && Date.now() < p.frozenUntil) {
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(p.angle);
+            ctx.beginPath();
+            ctx.arc(0, 0, 18, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.25)';
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.6)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+        }
+
         // HP Bar
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.fillRect(p.x - 15, p.y - 30, 30, 4);
