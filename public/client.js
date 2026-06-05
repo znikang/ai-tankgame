@@ -9,6 +9,7 @@ const MAP_H = 1200;
 
 let players = {};
 let bullets = [];
+let weaponDrops = [];
 let walls = [];
 let explosions = [];
 let myId = null;
@@ -214,6 +215,7 @@ socket.on('connect', () => {
 socket.on('gameState', (state) => {
     players = state.players;
     bullets = state.bullets;
+    weaponDrops = state.weaponDrops || [];
     walls = state.walls;
     explosions = state.explosions;
 
@@ -327,6 +329,27 @@ function draw() {
         ctx.fill();
     });
     ctx.shadowBlur = 0;
+
+    // Weapon drops
+    weaponDrops.forEach(drop => {
+        ctx.beginPath();
+        ctx.arc(drop.x, drop.y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = drop.color;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = drop.color;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = '#fff';
+        ctx.font = '9px monospace';
+        ctx.textAlign = 'center';
+        const nameMap = { shotgun: '散弹枪', sniper: '狙击枪', freeze: '冰冻枪', accel: '加速弹' };
+        ctx.fillText(nameMap[drop.type] || drop.type, drop.x, drop.y - 14);
+        ctx.textAlign = 'start';
+    });
 
     // Explosions
     explosions.forEach(ex => {
