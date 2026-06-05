@@ -13,6 +13,7 @@ let weaponDrops = [];
 let walls = [];
 let explosions = [];
 let particles = [];
+let floatingTexts = [];
 let DT = 1 / 60;
 let myId = null;
 let lastShotTime = 0;
@@ -242,6 +243,20 @@ socket.on('gameState', (state) => {
                 life: 1.0,
                 color: '#ff8800',
                 size: 3 + Math.random() * 3,
+            });
+        }
+    }
+
+    // Spawn floating text for player deaths
+    for (let id in state.players) {
+        const newP = state.players[id];
+        const oldP = players[id];
+        if (oldP && oldP.hp > 0 && newP.hp <= 0) {
+            floatingTexts.push({
+                x: newP.x, y: newP.y,
+                text: '💀',
+                life: 1.0,
+                color: '#FF4444',
             });
         }
     }
@@ -489,6 +504,17 @@ function draw() {
         ctx.fillText(label, p.x - 15, p.y - 35);
     }
 
+    // Floating text
+    floatingTexts.forEach(ft => {
+        ctx.globalAlpha = ft.life;
+        ctx.fillStyle = ft.color;
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(ft.text, ft.x, ft.y - 40 + (1 - ft.life) * -40);
+        ctx.textAlign = 'start';
+    });
+    ctx.globalAlpha = 1;
+
     // Muzzle flash
     const elapsed = Date.now() - lastShotTime;
     if (elapsed < 150 && myPlayer) {
@@ -519,6 +545,14 @@ function updateParticles() {
 
 function gameLoop() {
     updateParticles();
+
+    // Update floating texts
+    for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        ft.life -= DT;
+        if (ft.life <= 0) floatingTexts.splice(i, 1);
+    }
+
     draw();
     requestAnimationFrame(gameLoop);
 }
