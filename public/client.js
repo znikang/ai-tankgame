@@ -12,6 +12,8 @@ let bullets = [];
 let weaponDrops = [];
 let walls = [];
 let explosions = [];
+let particles = [];
+let DT = 1 / 60;
 let myId = null;
 let lastShotTime = 0;
 let authToken = localStorage.getItem('tank_token');
@@ -227,6 +229,23 @@ socket.on('gameState', (state) => {
     walls = state.walls;
     explosions = state.explosions;
 
+    // Generate particles for new explosions
+    const newExplosions = explosions.filter(ex => ex.life > 0.5);
+    for (const ex of newExplosions) {
+        for (let i = 0; i < 15; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 50 + Math.random() * 150;
+            particles.push({
+                x: ex.x, y: ex.y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                life: 1.0,
+                color: '#ff8800',
+                size: 3 + Math.random() * 3,
+            });
+        }
+    }
+
     let aiCount = 0;
     for (let id in players) { if (players[id].isAI) aiCount++; }
     const humanCount = Object.keys(players).length - aiCount;
@@ -354,6 +373,14 @@ function draw() {
         ctx.strokeRect(w.x, w.y, w.w, w.h);
     });
 
+    // Particles
+    particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life;
+        ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+    });
+    ctx.globalAlpha = 1;
+
     // Bullets
     bullets.forEach(b => {
         ctx.shadowBlur = 12;
@@ -480,7 +507,18 @@ function draw() {
     ctx.restore();
 }
 
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx * DT;
+        p.y += p.vy * DT;
+        p.life -= DT * 2;
+        if (p.life <= 0) particles.splice(i, 1);
+    }
+}
+
 function gameLoop() {
+    updateParticles();
     draw();
     requestAnimationFrame(gameLoop);
 }
