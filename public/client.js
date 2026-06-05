@@ -255,6 +255,15 @@ socket.on('weaponPickup', (data) => {
     }, 2000);
 });
 
+// Earthquake visual effect
+socket.on('earthquake', () => {
+    const flash = document.getElementById('earthquakeFlash');
+    flash.classList.remove('active');
+    void flash.offsetWidth; // force reflow
+    flash.classList.add('active');
+    setTimeout(() => flash.classList.remove('active'), 300);
+});
+
 const inputState = { up: false, down: false, left: false, right: false };
 
 document.addEventListener('keydown', (e) => {
@@ -372,9 +381,26 @@ function draw() {
         ctx.fillStyle = '#fff';
         ctx.font = '9px monospace';
         ctx.textAlign = 'center';
-        const nameMap = { shotgun: '散弹枪', sniper: '狙击枪', freeze: '冰冻枪', accel: '加速弹' };
-        ctx.fillText(nameMap[drop.type] || drop.type, drop.x, drop.y - 14);
-        ctx.textAlign = 'start';
+        if (drop.type === 'health') {
+            ctx.strokeStyle = '#00FF00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(drop.x - 4, drop.y); ctx.lineTo(drop.x + 4, drop.y);
+            ctx.moveTo(drop.x, drop.y - 4); ctx.lineTo(drop.x, drop.y + 4);
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText('+30', drop.x, drop.y + 16);
+            ctx.textAlign = 'start';
+        } else {
+            const nameMap = { shotgun: '散弹枪', sniper: '狙击枪', freeze: '冰冻枪', accel: '加速弹' };
+            ctx.fillStyle = '#fff';
+            ctx.font = '9px monospace';
+            ctx.textAlign = 'center';
+                ctx.fillText(nameMap[drop.type] || drop.type, drop.x, drop.y - 14);
+            ctx.textAlign = 'start';
+        }
     });
 
     // Explosions

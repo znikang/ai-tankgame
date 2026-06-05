@@ -146,6 +146,22 @@
         }
         #toast.visible { opacity: 1; }
 
+        /* ── Earthquake flash ── */
+        #earthquakeFlash {
+            position: fixed; inset: 0;
+            background: rgba(255, 0, 0, 0.3);
+            z-index: 1500;
+            pointer-events: none;
+            opacity: 0;
+        }
+        #earthquakeFlash.active {
+            animation: quakeFlash 0.3s ease-out forwards;
+        }
+        @keyframes quakeFlash {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
         /* ── Weapon HUD ── */
         #weaponHUD {
             position: fixed; bottom: 20px; left: 20px;
@@ -172,6 +188,8 @@
     </style>
 </head>
 <body>
+    <!-- Earthquake flash overlay -->
+    <div id="earthquakeFlash"></div>
     <!-- Weapon HUD -->
     <div id="weaponHUD">
         <span class="weapon-icon" id="weaponIcon"></span>
