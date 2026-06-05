@@ -320,12 +320,12 @@ function draw() {
     });
 
     // Bullets
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = 'yellow';
-    ctx.fillStyle = '#ffff00';
     bullets.forEach(b => {
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = b.color || '#ffff00';
+        ctx.fillStyle = b.color || '#ffff00';
         ctx.beginPath();
-        ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+        ctx.arc(b.x, b.y, b.radius || 4, 0, Math.PI * 2);
         ctx.fill();
     });
     ctx.shadowBlur = 0;
