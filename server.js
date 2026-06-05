@@ -110,6 +110,9 @@ const WEAPON_NAMES = {
 };
 
 let weaponDrops = [];
+let earthquakeTimer = null;
+const EARTHQUAKE_MIN = 30000; // 30 seconds
+const EARTHQUAKE_MAX = 90000; // 90 seconds
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -265,6 +268,35 @@ function spawnAITanks(count) {
 
 generateMap();
 spawnAITanks(3);
+
+function scheduleEarthquake() {
+    const delay = EARTHQUAKE_MIN + Math.random() * (EARTHQUAKE_MAX - EARTHQUAKE_MIN);
+    earthquakeTimer = setTimeout(() => {
+        triggerEarthquake();
+    }, delay);
+}
+
+function triggerEarthquake() {
+    let movedCount = 0;
+    for (let i = 0; i < walls.length; i++) {
+        const wall = walls[i];
+        if (!wall.destructible) continue;
+        const shift = Math.floor(Math.random() * 5) - 2; // -2 to +2
+        const shiftY = Math.floor(Math.random() * 5) - 2;
+        const newX = wall.x + shift * GRID;
+        const newY = wall.y + shiftY * GRID;
+        const clampedX = Math.max(0, Math.min(MAP_W - GRID, newX));
+        const clampedY = Math.max(0, Math.min(MAP_H - GRID, newY));
+        wall.x = clampedX;
+        wall.y = clampedY;
+        movedCount++;
+    }
+    console.log(`Earthquake! Moved ${movedCount} walls.`);
+    io.emit('earthquake', { walls });
+    scheduleEarthquake();
+}
+
+scheduleEarthquake();
 
 // ============================================================
 // Redis Account System Helpers
