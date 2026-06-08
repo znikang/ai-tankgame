@@ -44,7 +44,11 @@
 
 中心 CP 半徑較大（120px vs 80px），象徵其戰略價值。
 
-### C. 核心邏輯 (Core Logic)
+### C. 陣營顏色 (Faction Colors)
+
+每個 CP 獨立顯示其 `ownerId` 對應玩家的坦克顏色。不計算全局陣營多數 — 每個 CP 的顏色完全取決於當前佔領者。地圖覆蓋層以半透明色塊疊加，多個 CP 的色塊交疊處顏色自然加深。
+
+### D. 核心邏輯 (Core Logic)
 
 #### 佔領機制 (Capture Mechanism)
 
