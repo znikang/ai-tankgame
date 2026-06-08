@@ -88,7 +88,57 @@ const GRID = 40;
 const CAPTURE_TIME = 5000; // 佔領所需時間 (ms)
 const CAPTURE_RADIUS = 80; // 點位交互範圍
 
+// ============================================================
+// Map Themes — each map has different wall density and background
+// ============================================================
+
+const MAP_THEMES = [
+    {
+        name: '廢墟戰場',
+        bg: '#0a0a0c',
+        gridColor: '#1a1a1d',
+        destructibleChance: 0.25,
+        solidChance: 0.08,
+        elongatedCount: 30,
+    },
+    {
+        name: '冰封要塞',
+        bg: '#0c1220',
+        gridColor: '#162035',
+        destructibleChance: 0.18,
+        solidChance: 0.12,
+        elongatedCount: 20,
+    },
+    {
+        name: '熔岩裂谷',
+        bg: '#1a0c0a',
+        gridColor: '#2d1a15',
+        destructibleChance: 0.30,
+        solidChance: 0.06,
+        elongatedCount: 35,
+    },
+    {
+        name: '叢林迷宮',
+        bg: '#0a140c',
+        gridColor: '#152a1a',
+        destructibleChance: 0.22,
+        solidChance: 0.10,
+        elongatedCount: 25,
+    },
+    {
+        name: '霓虹都市',
+        bg: '#0e0a1a',
+        gridColor: '#1a1530',
+        destructibleChance: 0.15,
+        solidChance: 0.14,
+        elongatedCount: 40,
+    },
+];
+
+let currentMapTheme = 0; // 0-indexed into MAP_THEMES
+
 let capturePoints = [];
+let gameWon = false; // 防止重複觸發勝利
 
 function initCapturePoints() {
     capturePoints = [
@@ -167,7 +217,8 @@ function updateCapturePoints() {
                 console.log(`CP ${cp.id} captured by ${cp.ownerId}`);
 
                 // 勝利判斷：檢查是否所有點位都已被同一人佔領
-                if (capturePoints.every(p => p.ownerId === cp.ownerId)) {
+                if (!gameWon && capturePoints.every(p => p.ownerId === cp.ownerId)) {
+                    gameWon = true;
                     const player = players[cp.ownerId];
                     if (player && player.username) {
                         handleVictory(player.username);
@@ -260,6 +311,7 @@ function generateMap() {
     walls = [];
     const cols = Math.floor(MAP_W / GRID);
     const rows = Math.floor(MAP_H / GRID);
+    const theme = MAP_THEMES[currentMapTheme];
 
     const isReserved = (c, r) => {
         return c === 0 || r === 0 || c === cols - 1 || r === rows - 1;
@@ -286,7 +338,7 @@ function generateMap() {
     for (let r = 1; r < rows - 1; r++) {
         for (let c = 1; c < cols - 1; c++) {
             if (isReserved(c, r) || isSpawnReserved(c, r)) continue;
-            if (Math.random() < 0.25) {
+            if (Math.random() < theme.destructibleChance) {
                 walls.push({
                     x: c * GRID, y: r * GRID, w: GRID, h: GRID,
                     destructible: true, hp: 3
@@ -301,7 +353,7 @@ function generateMap() {
             if (isReserved(c, r) || isSpawnReserved(c, r)) continue;
             const existing = walls.find(w => w.x === c * GRID && w.y === r * GRID);
             if (existing) continue;
-            if (Math.random() < 0.08) {
+            if (Math.random() < theme.solidChance) {
                 walls.push({
                     x: c * GRID, y: r * GRID, w: GRID, h: GRID,
                     destructible: false, hp: 999
@@ -311,7 +363,7 @@ function generateMap() {
     }
 
     // Elongated solid walls
-    for (let attempt = 0; attempt < 30; attempt++) {
+    for (let attempt = 0; attempt < theme.elongatedCount; attempt++) {
         const cx = 2 + Math.floor(Math.random() * (cols - 6));
         const cy = 2 + Math.floor(Math.random() * (rows - 6));
         const horizontal = Math.random() > 0.5;
@@ -331,7 +383,7 @@ function generateMap() {
         }
     }
 
-    console.log(`Map generated: ${walls.length} walls (${walls.filter(w => w.destructible).length} destructible, ${walls.filter(w => !w.destructible).length} solid)`);
+    console.log(`[${theme.name}] Map generated: ${walls.length} walls (${walls.filter(w => w.destructible).length} destructible, ${walls.filter(w => !w.destructible).length} solid)`);
 }
 
 function spawnAITanks(count) {
@@ -487,8 +539,23 @@ async function handleVictory(username) {
 
 function transitionToNextMap() {
     console.log("Transitioning to next map...");
-    generateMap(); // 重設牆壁
-
+    
+    // 重置遊戲狀態
+    gameWon = false;
+    
+    // 清除所有玩家
+    players = {};
+    
+    // 切換到下一張地圖
+    currentMapTheme = (currentMapTheme + 1) % MAP_THEMES.length;
+    const theme = MAP_THEMES[currentMapTheme];
+    
+    // 重新生成地圖
+    generateMap();
+    
+    // 重新生成 AI 坦克
+    spawnAITanks(3);
+    
     // 重新分配點位讓下一局不同一點
     capturePoints = [
         { id: 'cp-1', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
@@ -500,9 +567,10 @@ function transitionToNextMap() {
 
     io.emit('map:reset', {
         walls: walls,
-        capturePoints: capturePoints
+        capturePoints: capturePoints,
+        players: {},
+        theme: { name: theme.name, bg: theme.bg, gridColor: theme.gridColor }
     });
-    return { success: true, username, message: null };
 }
 
 // Socket.IO Connection Handler
@@ -1009,37 +1077,85 @@ setInterval(() => {
             const isFrozen = Date.now() < p.frozenUntil;
             const speedMult = isFrozen ? 0.5 : 1;
 
-            // AI targets humans first; if no humans, targets other AIs
-            let target = getAITarget(p, true);
+            // Check if AI owns a CP — patrol nearby
+            const ownedCP = capturePoints.find(cp => cp.ownerId === p.id);
+            const nearestEnemyCP = capturePoints
+                .filter(cp => cp.ownerId !== null && cp.ownerId !== p.id)
+                .map(cp => ({ cp, dist: Math.sqrt((cp.x - p.x) ** 2 + (cp.y - p.y) ** 2) }))
+                .sort((a, b) => a.dist - b.dist)[0];
 
-            if (target) {
-                const distToTarget = Math.sqrt((target.x - p.x) ** 2 + (target.y - p.y) ** 2);
-
-                if (distToTarget > 300) {
-                    p.angle = Math.atan2(target.y - p.y, target.x - p.x);
+            // If AI owns a CP and is near it, stay to defend
+            if (ownedCP) {
+                const distToOwned = Math.sqrt((ownedCP.x - p.x) ** 2 + (ownedCP.y - p.y) ** 2);
+                if (distToOwned > ownedCP.radius * 2) {
+                    // Move toward owned CP to defend
+                    p.angle = Math.atan2(ownedCP.y - p.y, ownedCP.x - p.x);
                     p.isMoving = true;
                     moveTank(p, p.angle, speedMult);
-                } else if (distToTarget > 120) {
-                    const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
-                    p.angle = angleToTarget;
-                    const strafeAngle = angleToTarget + (p.strafeDir || 1) * Math.PI / 2.5;
-                    p.isMoving = true;
-                    moveTank(p, strafeAngle, 0.7 * speedMult);
                 } else {
-                    const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
-                    p.angle = angleToTarget;
-                    const backAngle = angleToTarget + Math.PI;
-                    p.isMoving = true;
-                    moveTank(p, backAngle, speedMult);
-                }
-
-                aiFire(p, target);
-
-                if (Math.random() < 0.01) {
-                    p.strafeDir = p.strafeDir === 1 ? -1 : 1;
+                    // Near owned CP — check for enemy nearby
+                    if (nearestEnemyCP && nearestEnemyCP.dist < 400) {
+                        // Enemy nearby — defend
+                        const angleToEnemy = Math.atan2(nearestEnemyCP.cp.y - p.y, nearestEnemyCP.cp.x - p.x);
+                        p.angle = angleToEnemy;
+                        p.isMoving = true;
+                        moveTank(p, p.angle, speedMult);
+                        aiFire(p, { x: nearestEnemyCP.cp.x, y: nearestEnemyCP.cp.y });
+                    } else {
+                        // No threat — stand still to maintain capture
+                        p.isMoving = false;
+                    }
                 }
             } else {
-                p.isMoving = false;
+                // AI has no CP — look for unowned or enemy CPs to capture
+                let targetCP = capturePoints.find(cp => cp.ownerId === null);
+                if (!targetCP && nearestEnemyCP) {
+                    targetCP = nearestEnemyCP.cp;
+                }
+
+                if (targetCP) {
+                    const distToCP = Math.sqrt((targetCP.x - p.x) ** 2 + (targetCP.y - p.y) ** 2);
+                    
+                    // If there's a combat target nearby, fight first
+                    let combatTarget = getAITarget(p, true);
+                    if (combatTarget && Math.sqrt((combatTarget.x - p.x) ** 2 + (combatTarget.y - p.y) ** 2) < 250) {
+                        // Engage in combat
+                        let target = combatTarget;
+                        const distToTarget = Math.sqrt((target.x - p.x) ** 2 + (target.y - p.y) ** 2);
+                        if (distToTarget > 300) {
+                            p.angle = Math.atan2(target.y - p.y, target.x - p.x);
+                            p.isMoving = true;
+                            moveTank(p, p.angle, speedMult);
+                        } else if (distToTarget > 120) {
+                            const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
+                            p.angle = angleToTarget;
+                            const strafeAngle = angleToTarget + (p.strafeDir || 1) * Math.PI / 2.5;
+                            p.isMoving = true;
+                            moveTank(p, strafeAngle, 0.7 * speedMult);
+                        } else {
+                            const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
+                            p.angle = angleToTarget;
+                            const backAngle = angleToTarget + Math.PI;
+                            p.isMoving = true;
+                            moveTank(p, backAngle, speedMult);
+                        }
+                        aiFire(p, target);
+                        if (Math.random() < 0.01) {
+                            p.strafeDir = p.strafeDir === 1 ? -1 : 1;
+                        }
+                    } else if (distToCP > 150) {
+                        // Move toward CP
+                        p.angle = Math.atan2(targetCP.y - p.y, targetCP.x - p.x);
+                        p.isMoving = true;
+                        moveTank(p, p.angle, speedMult);
+                    } else {
+                        // Arrived at CP — stand still to capture
+                        p.isMoving = false;
+                    }
+                } else {
+                    // No CPs available — idle
+                    p.isMoving = false;
+                }
             }
         } else if (p.isMoving && p.targetX !== 0) {
             const distToTarget = Math.sqrt((p.targetX - p.x) ** 2 + (p.targetY - p.y) ** 2);
@@ -1234,6 +1350,7 @@ setInterval(() => {
         weaponDrops,
         auth: authInfo,
         capturePoints: cpData,
+        theme: MAP_THEMES[currentMapTheme],
     });
 }, 16);
 

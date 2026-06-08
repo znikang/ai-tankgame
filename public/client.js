@@ -24,6 +24,7 @@ let state = {
     weaponDrops: [],
     auth: {},
     capturePoints: [],
+    theme: null,
 };
 let myId = null;
 let lastShotTime = 0;
@@ -317,6 +318,40 @@ socket.on('earthquake', () => {
     playSound('earthquake');
 });
 
+// Victory screen
+socket.on('game:victory', (data) => {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;';
+    overlay.innerHTML = `
+        <div style="background:#1a1a2e;border:2px solid gold;border-radius:16px;padding:40px;text-align:center;font-size:24px;color:#fff;">
+            <div style="font-size:48px;margin-bottom:16px;">🏆</div>
+            <div style="font-size:32px;font-weight:bold;color:gold;margin-bottom:8px;">勝利！</div>
+            <div style="margin-bottom:8px;">${data.username} 佔領了所有據點！</div>
+            <div style="color:#aaa;font-size:16px;">${data.message}</div>
+            <div style="color:#ffcc00;font-size:20px;margin-top:12px;">+${Math.abs(data.score)} 分</div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+    setTimeout(() => overlay.remove(), 4000);
+});
+
+// Map reset — clear the canvas and prepare for new round
+socket.on('map:reset', (data) => {
+    walls = data.walls || [];
+    state.capturePoints = data.capturePoints || [];
+    bullets = [];
+    explosions = [];
+    weaponDrops = [];
+    particles = [];
+    floatingTexts = [];
+    
+    // Apply new map theme
+    if (data.theme) {
+        document.body.style.background = data.theme.bg;
+        console.log(`🗺️ 切換地圖：${data.theme.name}`);
+    }
+});
+
 const inputState = { up: false, down: false, left: false, right: false };
 
 document.addEventListener('keydown', (e) => {
@@ -369,7 +404,14 @@ function draw() {
     const scaleY = canvas.height / MAP_H;
     cameraScale = Math.min(scaleX, scaleY);
 
-    ctx.fillStyle = '#0a0a0c';
+    let mapBg = '#0a0a0c';
+    let mapGrid = '#1a1a1d';
+    if (state.theme) {
+        mapBg = state.theme.bg || '#0a0a0c';
+        mapGrid = state.theme.gridColor || '#1a1a1d';
+    }
+
+    ctx.fillStyle = mapBg;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.save();
@@ -382,7 +424,7 @@ function draw() {
     ctx.setTransform(cameraScale, 0, 0, cameraScale, offsetX * cameraScale, offsetY * cameraScale);
 
     // Grid
-    ctx.strokeStyle = '#1a1a1d';
+    ctx.strokeStyle = mapGrid;
     ctx.lineWidth = 1;
     const step = 40;
     for (let x = 0; x <= MAP_W; x += step) {
