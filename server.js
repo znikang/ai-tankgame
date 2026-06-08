@@ -83,12 +83,11 @@ const DT = 1 / FPS;
 const MAP_W = 1600;  // doubled from 800
 const MAP_H = 1200;  // doubled from 600
 const RADIUS = 15;
-const GRID = 40;
+const GRID = 40;\nconst CAPTURE_TIME = 5000; // 佔領所需時間 (ms)\nconst CAPTURE_RADIUS = 80; // 點位交互範圍\n\n// ============================================================\n// Territorial Expansion System (CP Model)\n// ============================================================\nlet capturePoints = [];
 
-// ============================================================
-// Weapon System
-// ============================================================
-
+function initCapturePoints() {\n    capturePoints = [\n        { id: 'cp-1', x: 300, y: 300, radius: CAPTURE_RADIUS, ownerId: null, timeLeft: -1 },\n        { id: 'cp-2', x: 1300, y: 300, radius: CAPTURE_RADIUS, ownerId: null, timeLeft: -1 },\n        { id: 'cp-3', x: 300, y: 900, radius: CAPTURE_RADIUS, ownerId: null, timeLeft: -1 },\n        { id: 'cp-4', x: 1300, y: 900, radius: CAPTURE_RADIUS, ownerId: null, timeLeft: -1 },\n        { id: 'cp-5', x: 800, y: 600, radius: CAPTURE_RADIUS * 1.5, ownerId: null, timeLeft: -1 },\n        { id: 'cp-6', x: 800, y: 300, radius: CAPTURE_RADIUS, ownerId: null, timeLeft: -1 }\n    ];\
+}\
+initCapturePoints();\n\n// ============================================================\n// Weapon System\n// ============================================================\n
 const WEAPON_TYPES = ['basic', 'shotgun', 'sniper', 'freeze', 'accel'];
 
 const WEAPON_CONFIG = {
