@@ -102,6 +102,74 @@ function initCapturePoints() {
 
 initCapturePoints();
 
+function updateCapturePoints() {
+    const now = Date.now();
+
+    for (const cp of capturePoints) {
+        // Check which players are in range and stationary
+        const stationaryPlayers = [];
+
+        for (const id in players) {
+            const p = players[id];
+            if (!p || p.hp <= 0) continue;
+
+            const dist = Math.sqrt((p.x - cp.x) ** 2 + (p.y - cp.y) ** 2);
+            if (dist < cp.radius) {
+                const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 0;
+                if (speed < 2) {
+                    stationaryPlayers.push(p);
+                }
+            }
+        }
+
+        // If no stationary players, reset capture state
+        if (stationaryPlayers.length === 0) {
+            if (cp.capturingPlayerId !== null && cp.ownerId === null) {
+                cp.capturingPlayerId = null;
+                cp.captureStartTime = null;
+            }
+            continue;
+        }
+
+        // Handle capture logic
+        if (cp.ownerId !== null) {
+            // CP is already owned
+            const owner = stationaryPlayers.find(p => p.id === cp.ownerId);
+            if (owner) {
+                continue;
+            }
+            // Enemy player is here — start enemy capture
+            const enemy = stationaryPlayers.find(p => p.id !== cp.ownerId);
+            if (enemy) {
+                cp.capturingPlayerId = enemy.id;
+                cp.captureStartTime = now;
+            }
+        } else {
+            // CP is unowned
+            if (cp.capturingPlayerId === null) {
+                cp.capturingPlayerId = stationaryPlayers[0].id;
+                cp.captureStartTime = now;
+            } else {
+                const currentCapture = stationaryPlayers.find(p => p.id === cp.capturingPlayerId);
+                if (!currentCapture) {
+                    cp.captureStartTime = now;
+                    cp.capturingPlayerId = stationaryPlayers[0].id;
+                }
+            }
+        }
+
+        // Check if capture completed
+        if (cp.capturingPlayerId !== null && cp.captureStartTime !== null) {
+            if (now - cp.captureStartTime >= CAPTURE_TIME) {
+                cp.ownerId = cp.capturingPlayerId;
+                cp.capturingPlayerId = null;
+                cp.captureStartTime = null;
+                console.log(`CP ${cp.id} captured by ${cp.ownerId}`);
+            }
+        }
+    }
+}
+
 // ============================================================
 // Weapon System
 // ============================================================
@@ -276,7 +344,9 @@ function spawnAITanks(count) {
             strafeDir: 1,
             weapon: 'basic',
             lastFire: 0,
-            frozenUntil: 0
+            frozenUntil: 0,
+            vx: 0,
+            vy: 0
         };
     }
     console.log(`Spawned ${count} AI tanks`);
@@ -439,7 +509,9 @@ io.on('connection', (socket) => {
         isMoving: false,
         weapon: 'basic',
         lastFire: 0,
-        frozenUntil: 0
+        frozenUntil: 0,
+        vx: 0,
+        vy: 0
     };
 
     io.emit('playerJoined', players[socket.id]);
@@ -947,7 +1019,16 @@ setInterval(() => {
         } else if (p.isMoving) {
             moveTank(p, p.angle, 1);
         }
+
+        // Track velocity for capture detection
+        p.vx = p._prevX !== undefined ? p.x - p._prevX : 0;
+        p.vy = p._prevY !== undefined ? p.y - p._prevY : 0;
+        p._prevX = p.x;
+        p._prevY = p.y;
     }
+
+    // Capture point logic
+    updateCapturePoints();
 
     // Bullet logic
     for (let i = bullets.length - 1; i >= 0; i--) {
