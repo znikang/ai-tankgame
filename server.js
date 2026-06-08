@@ -1167,7 +1167,7 @@ setInterval(() => {
         }
     }
 
-    // Emit gameState with auth info
+    // Emit gameState with auth info and capture points
     const authInfo = {};
     for (let id in players) {
         const p = players[id];
@@ -1179,7 +1179,27 @@ setInterval(() => {
         }
     }
 
-    io.emit('gameState', { players, bullets, walls, explosions, weaponDrops, auth: authInfo });
+    // Serialize capture points for client
+    const cpData = capturePoints.map(cp => ({
+        id: cp.id,
+        x: cp.x,
+        y: cp.y,
+        radius: cp.radius,
+        ownerId: cp.ownerId,
+        capturingPlayerId: cp.capturingPlayerId,
+        captureStartTime: cp.captureStartTime,
+        regionTag: cp.regionTag,
+    }));
+
+    io.emit('gameState', {
+        players,
+        bullets,
+        walls,
+        explosions,
+        weaponDrops,
+        auth: authInfo,
+        capturePoints: cpData,
+    });
 }, 16);
 
 server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
