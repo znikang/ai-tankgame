@@ -6,6 +6,7 @@ const statusDiv = document.getElementById('status');
 // Map dimensions (server-side)
 const MAP_W = 1600;
 const MAP_H = 1200;
+const CAPTURE_TIME = 5000;
 
 let players = {};
 let bullets = [];
@@ -15,6 +16,15 @@ let explosions = [];
 let particles = [];
 let floatingTexts = [];
 let DT = 1 / 60;
+let state = {
+    players: {},
+    bullets: [],
+    walls: [],
+    explosions: [],
+    weaponDrops: [],
+    auth: {},
+    capturePoints: [],
+};
 let myId = null;
 let lastShotTime = 0;
 let authToken = localStorage.getItem('tank_token');
@@ -219,16 +229,18 @@ socket.on('connect', () => {
     }
 });
 
-socket.on('gameState', (state) => {
+socket.on('gameState', (s) => {
+    state = s;
     players = state.players;
     bullets = state.bullets;
     weaponDrops = state.weaponDrops || [];
-    // Update weapon UI for my player
-    if (myId && players[myId]) {
-        updateWeaponUI(players[myId].weapon || 'basic');
-    }
     walls = state.walls;
     explosions = state.explosions;
+
+    // Update weapon UI for my player
+    if (myId && state.players[myId]) {
+        updateWeaponUI(state.players[myId].weapon || 'basic');
+    }
 
     // Generate particles for new explosions
     const newExplosions = explosions.filter(ex => ex.life > 0.5);
@@ -267,8 +279,8 @@ socket.on('gameState', (state) => {
     }
 
     let aiCount = 0;
-    for (let id in players) { if (players[id].isAI) aiCount++; }
-    const humanCount = Object.keys(players).length - aiCount;
+    for (let id in state.players) { if (state.players[id].isAI) aiCount++; }
+    const humanCount = Object.keys(state.players).length - aiCount;
     statusDiv.innerText = `👤 Humans: ${humanCount} | 🤖 AI: ${aiCount} | [WASD] Drive | [Space] Fire`;
 });
 
@@ -379,6 +391,8 @@ function draw() {
     for (let y = 0; y <= MAP_H; y += step) {
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(MAP_W, y); ctx.stroke();
     }
+
+    drawTerritoryOverlay(ctx);
 
     // Walls
     ctx.shadowBlur = 0;
@@ -538,7 +552,117 @@ function draw() {
         ctx.restore();
     }
 
+    drawCapturePoints(ctx);
+
     ctx.restore();
+}
+
+function drawTerritoryOverlay(ctx) {
+    if (!state.capturePoints) return;
+
+    for (const cp of state.capturePoints) {
+        if (cp.ownerId === null) continue;
+
+        const owner = state.players[cp.ownerId];
+        if (!owner) continue;
+
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = owner.color;
+        ctx.beginPath();
+        ctx.arc(cp.x, cp.y, cp.radius * 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    }
+}
+
+function drawCapturePoints(ctx) {
+    if (!state.capturePoints) return;
+
+    for (const cp of state.capturePoints) {
+        const isOwned = cp.ownerId !== null;
+        const isCapturing = cp.capturingPlayerId !== null && cp.captureStartTime !== null;
+
+        // Draw territory overlay (behind everything)
+        if (isOwned) {
+            const owner = state.players[cp.ownerId];
+            if (owner) {
+                ctx.save();
+                ctx.globalAlpha = 0.15;
+                ctx.fillStyle = owner.color;
+                ctx.beginPath();
+                ctx.arc(cp.x, cp.y, cp.radius * 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Draw CP base circle
+        ctx.save();
+        if (isOwned) {
+            const owner = state.players[cp.ownerId];
+            ctx.strokeStyle = owner ? owner.color : '#888';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([]);
+        } else if (isCapturing) {
+            const capturer = state.players[cp.capturingPlayerId];
+            ctx.strokeStyle = capturer ? capturer.color : '#888';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+        } else {
+            ctx.strokeStyle = '#555';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 5]);
+        }
+
+        ctx.beginPath();
+        ctx.arc(cp.x, cp.y, cp.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // Draw capture progress ring (only when capturing)
+        if (isCapturing) {
+            const now = Date.now();
+            const elapsed = now - cp.captureStartTime;
+            const progress = Math.min(elapsed / CAPTURE_TIME, 1);
+
+            const capturer = state.players[cp.capturingPlayerId];
+            const color = capturer ? capturer.color : '#888';
+
+            ctx.save();
+            ctx.beginPath();
+            // Background ring (gray)
+            ctx.arc(cp.x, cp.y, cp.radius + 8, 0, Math.PI * 2);
+            ctx.strokeStyle = 'rgba(100,100,100,0.3)';
+            ctx.lineWidth = 6;
+            ctx.stroke();
+
+            // Progress ring (capturer color, clockwise from 12 o'clock)
+            ctx.beginPath();
+            ctx.arc(cp.x, cp.y, cp.radius + 8, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * progress);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Draw center icon
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.font = '16px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        if (isOwned) {
+            ctx.fillText('🏁', cp.x, cp.y);
+        } else if (isCapturing) {
+            ctx.fillText('⏳', cp.x, cp.y);
+        } else {
+            ctx.fillText('+', cp.x, cp.y);
+        }
+        ctx.restore();
+    }
 }
 
 function updateParticles() {
