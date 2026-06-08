@@ -156,8 +156,8 @@ function updateCapturePoints() {
     const now = Date.now();
 
     for (const cp of capturePoints) {
-        // Check which players are in range and stationary
-        const stationaryPlayers = [];
+        // Check which players are inside the CP radius (moving or not)
+        const playersInRange = [];
 
         for (const id in players) {
             const p = players[id];
@@ -165,26 +165,22 @@ function updateCapturePoints() {
 
             const dist = Math.sqrt((p.x - cp.x) ** 2 + (p.y - cp.y) ** 2);
             if (dist < cp.radius) {
-                const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy) || 0;
-                if (speed < 2) {
-                    stationaryPlayers.push(p);
-                }
+                playersInRange.push(p);
             }
         }
 
-        // If no stationary players, reset capture progress
-        if (stationaryPlayers.length === 0) {
+        // No one in range — reset capture progress
+        if (playersInRange.length === 0) {
             cp.capturingPlayerId = null;
             cp.captureStartTime = null;
             continue;
         }
 
-        // Get the player who has been standing still the longest in range
-        // (they are the one attempting to capture)
-        const capturer = stationaryPlayers[0];
+        // First player in range starts / continues capturing
+        const capturer = playersInRange[0];
 
         if (cp.ownerId === null) {
-            // Unowned CP — first stationary player starts capturing
+            // Unowned CP
             if (cp.capturingPlayerId !== capturer.id) {
                 cp.capturingPlayerId = capturer.id;
                 cp.captureStartTime = now;
@@ -192,11 +188,11 @@ function updateCapturePoints() {
         } else {
             // CP is owned by someone
             if (cp.ownerId === capturer.id) {
-                // Owner is standing here — they maintain ownership
+                // Owner is in range — maintain ownership, reset capture timer
                 cp.capturingPlayerId = null;
                 cp.captureStartTime = null;
             } else {
-                // Enemy is standing here — they start capturing (steals the CP)
+                // Enemy is in range — start stealing (5 seconds)
                 cp.capturingPlayerId = capturer.id;
                 cp.captureStartTime = now;
             }
