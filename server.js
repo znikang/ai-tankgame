@@ -874,6 +874,16 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
+        // Reset CPs owned by this player
+        for (const cp of capturePoints) {
+            if (cp.ownerId === socket.id) {
+                cp.ownerId = null;
+                cp.capturingPlayerId = null;
+                cp.captureStartTime = null;
+                console.log(`CP ${cp.id} lost ownership (player ${socket.id} disconnected)`);
+            }
+        }
+
         delete players[socket.id];
         io.emit('playerLeft', socket.id);
     });
