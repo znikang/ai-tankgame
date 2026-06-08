@@ -165,6 +165,14 @@ function updateCapturePoints() {
                 cp.capturingPlayerId = null;
                 cp.captureStartTime = null;
                 console.log(`CP ${cp.id} captured by ${cp.ownerId}`);
+
+                // 勝利判斷：檢查是否所有點位都已被同一人佔領
+                if (capturePoints.every(p => p.ownerId === cp.ownerId)) {
+                    const player = players[cp.ownerId];
+                    if (player && player.username) {
+                        handleVictory(player.username);
+                    }
+                }
             }
         }
     }
@@ -455,31 +463,48 @@ function emitStatsUpdate(socket, username) {
     });
 }
 
-// ============================================================
-// Auth Middleware Helper
-// ============================================================
-
-async function authenticateSocket(socket, payload) {
-    const token = payload && payload.token;
-    if (!token) return { success: false, username: null, message: 'Authentication required' };
-
-    let username = null;
+// 勝利邏輯與點位管理擴充
+async function handleVictory(username) {
+    console.log(`Player ${username} achieved victory!`);
     try {
-        if (redisAvailable) {
-            username = await redis.get(`session:${token}`);
-        }
+        const currentStats = await getPlayerStats(username);
+        await updatePlayerStats(username, { score: currentStats.score + 500 });
+
+        // 通知客戶端勝利並提供視覺過場時間
+        setTimeout(() => {
+            io.emit('game:victory', { 
+                username, 
+                score: currentStats.score + 500,
+                message: "恭喜佔領全區！地圖正在重新生成..." 
+            });
+
+            transitionToNextMap();
+        }, 2000);
     } catch (err) {
-        console.error(`Auth error: ${err.message}`);
+        console.error("Error handling victory:", err);
     }
+}
 
-    if (!username) {
-        return { success: false, username: null, message: 'Session expired' };
-    }
+function transitionToNextMap() {
+    console.log("Transitioning to next map...");
+    generateMap(); // 重設牆壁
 
+    // 重新分配點位讓下一局不同一點
+    capturePoints = [
+        { id: 'cp-1', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
+        { id: 'cp-2', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
+        { id: 'cp-3', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
+        { id: 'cp-4', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
+        { id: 'cp-5', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS * 1.5, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
+    ];
+
+    io.emit('map:reset', {
+        walls: walls,
+        capturePoints: capturePoints
+    });
     return { success: true, username, message: null };
 }
 
-// ============================================================
 // Socket.IO Connection Handler
 // ============================================================
 
