@@ -156,7 +156,7 @@ function updateCapturePoints() {
     const now = Date.now();
 
     for (const cp of capturePoints) {
-        // Check which players are inside the CP radius (moving or not)
+        // Check which players are inside the CP radius
         const playersInRange = [];
 
         for (const id in players) {
@@ -176,24 +176,37 @@ function updateCapturePoints() {
             continue;
         }
 
-        // First player in range starts / continues capturing
-        const capturer = playersInRange[0];
+        // Separate players by ownership
+        const ownerInRange = cp.ownerId !== null
+            ? playersInRange.find(p => p.id === cp.ownerId)
+            : null;
+        const enemiesInRange = cp.ownerId !== null
+            ? playersInRange.filter(p => p.id !== cp.ownerId)
+            : playersInRange;
 
         if (cp.ownerId === null) {
-            // Unowned CP
-            if (cp.capturingPlayerId !== capturer.id) {
-                cp.capturingPlayerId = capturer.id;
+            // Unowned CP — first player starts capturing
+            if (cp.capturingPlayerId !== playersInRange[0].id) {
+                cp.capturingPlayerId = playersInRange[0].id;
                 cp.captureStartTime = now;
             }
-        } else {
-            // CP is owned by someone
-            if (cp.ownerId === capturer.id) {
-                // Owner is in range — maintain ownership, reset capture timer
-                cp.capturingPlayerId = null;
-                cp.captureStartTime = null;
-            } else {
-                // Enemy is in range — start stealing (5 seconds)
-                cp.capturingPlayerId = capturer.id;
+        } else if (ownerInRange && enemiesInRange.length === 0) {
+            // Owner alone in range — maintains ownership, cancel any pending capture
+            cp.capturingPlayerId = null;
+            cp.captureStartTime = null;
+        } else if (ownerInRange && enemiesInRange.length > 0) {
+            // Both owner and enemies in range — owner holds, but enemies can steal
+            // Enemies start/continue stealing; owner's presence doesn't cancel it
+            const enemy = enemiesInRange[0];
+            if (cp.capturingPlayerId !== enemy.id) {
+                cp.capturingPlayerId = enemy.id;
+                cp.captureStartTime = now;
+            }
+        } else if (!ownerInRange && enemiesInRange.length > 0) {
+            // Owner NOT in range — enemies steal
+            const enemy = enemiesInRange[0];
+            if (cp.capturingPlayerId !== enemy.id) {
+                cp.capturingPlayerId = enemy.id;
                 cp.captureStartTime = now;
             }
         }
@@ -1103,27 +1116,30 @@ setInterval(() => {
                 .map(cp => ({ cp, dist: Math.sqrt((cp.x - p.x) ** 2 + (cp.y - p.y) ** 2) }))
                 .sort((a, b) => a.dist - b.dist)[0];
 
-            // If AI owns a CP and is near it, stay to defend
+            // If AI owns a CP — patrol around it (not on top, so enemies can challenge)
             if (ownedCP) {
                 const distToOwned = Math.sqrt((ownedCP.x - p.x) ** 2 + (ownedCP.y - p.y) ** 2);
-                if (distToOwned > ownedCP.radius * 2) {
-                    // Move toward owned CP to defend
+                if (distToOwned > ownedCP.radius * 2.5) {
+                    // Too far — return to defend
                     p.angle = Math.atan2(ownedCP.y - p.y, ownedCP.x - p.x);
                     p.isMoving = true;
                     moveTank(p, p.angle, speedMult);
+                } else if (nearestEnemyCP && nearestEnemyCP.dist < 400) {
+                    // Enemy nearby — rush to defend that CP
+                    const angleToEnemy = Math.atan2(nearestEnemyCP.cp.y - p.y, nearestEnemyCP.cp.x - p.x);
+                    p.angle = angleToEnemy;
+                    p.isMoving = true;
+                    moveTank(p, p.angle, speedMult);
+                    aiFire(p, { x: nearestEnemyCP.cp.x, y: nearestEnemyCP.cp.y });
                 } else {
-                    // Near owned CP — check for enemy nearby
-                    if (nearestEnemyCP && nearestEnemyCP.dist < 400) {
-                        // Enemy nearby — defend
-                        const angleToEnemy = Math.atan2(nearestEnemyCP.cp.y - p.y, nearestEnemyCP.cp.x - p.x);
-                        p.angle = angleToEnemy;
-                        p.isMoving = true;
-                        moveTank(p, p.angle, speedMult);
-                        aiFire(p, { x: nearestEnemyCP.cp.x, y: nearestEnemyCP.cp.y });
-                    } else {
-                        // No threat — stand still to maintain capture
-                        p.isMoving = false;
-                    }
+                    // Patrol around the CP in a circle — stays in range but keeps moving
+                    const patrolAngle = Date.now() / 1500 + (p.id.charCodeAt(2) || 0);
+                    const patrolRadius = ownedCP.radius * 0.7;
+                    const tx = ownedCP.x + Math.cos(patrolAngle) * patrolRadius;
+                    const ty = ownedCP.y + Math.sin(patrolAngle) * patrolRadius;
+                    p.angle = Math.atan2(ty - p.y, tx - p.x);
+                    p.isMoving = true;
+                    moveTank(p, p.angle, speedMult * 0.6);
                 }
             } else {
                 // AI has no CP — look for unowned or enemy CPs to capture
