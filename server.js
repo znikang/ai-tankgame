@@ -172,49 +172,45 @@ function updateCapturePoints() {
             }
         }
 
-        // If no stationary players, reset capture state
+        // If no stationary players, reset capture progress
         if (stationaryPlayers.length === 0) {
-            if (cp.capturingPlayerId !== null && cp.ownerId === null) {
-                cp.capturingPlayerId = null;
-                cp.captureStartTime = null;
-            }
+            cp.capturingPlayerId = null;
+            cp.captureStartTime = null;
             continue;
         }
 
-        // Handle capture logic
-        if (cp.ownerId !== null) {
-            // CP is already owned
-            const owner = stationaryPlayers.find(p => p.id === cp.ownerId);
-            if (owner) {
-                continue;
-            }
-            // Enemy player is here — start enemy capture
-            const enemy = stationaryPlayers.find(p => p.id !== cp.ownerId);
-            if (enemy) {
-                cp.capturingPlayerId = enemy.id;
+        // Get the player who has been standing still the longest in range
+        // (they are the one attempting to capture)
+        const capturer = stationaryPlayers[0];
+
+        if (cp.ownerId === null) {
+            // Unowned CP — first stationary player starts capturing
+            if (cp.capturingPlayerId !== capturer.id) {
+                cp.capturingPlayerId = capturer.id;
                 cp.captureStartTime = now;
             }
         } else {
-            // CP is unowned
-            if (cp.capturingPlayerId === null) {
-                cp.capturingPlayerId = stationaryPlayers[0].id;
-                cp.captureStartTime = now;
+            // CP is owned by someone
+            if (cp.ownerId === capturer.id) {
+                // Owner is standing here — they maintain ownership
+                cp.capturingPlayerId = null;
+                cp.captureStartTime = null;
             } else {
-                const currentCapture = stationaryPlayers.find(p => p.id === cp.capturingPlayerId);
-                if (!currentCapture) {
-                    cp.captureStartTime = now;
-                    cp.capturingPlayerId = stationaryPlayers[0].id;
-                }
+                // Enemy is standing here — they start capturing (steals the CP)
+                cp.capturingPlayerId = capturer.id;
+                cp.captureStartTime = now;
             }
         }
 
         // Check if capture completed
         if (cp.capturingPlayerId !== null && cp.captureStartTime !== null) {
             if (now - cp.captureStartTime >= CAPTURE_TIME) {
-                cp.ownerId = cp.capturingPlayerId;
+                const newOwnerId = cp.capturingPlayerId;
+                const wasOwned = cp.ownerId !== null;
+                cp.ownerId = newOwnerId;
                 cp.capturingPlayerId = null;
                 cp.captureStartTime = null;
-                console.log(`CP ${cp.id} captured by ${cp.ownerId}`);
+                console.log(`CP ${cp.id} ${wasOwned ? 'stolen by' : 'captured by'} ${newOwnerId}`);
 
                 // 勝利判斷：檢查是否所有點位都已被同一人佔領
                 if (!gameWon && capturePoints.every(p => p.ownerId === cp.ownerId)) {
@@ -543,8 +539,13 @@ function transitionToNextMap() {
     // 重置遊戲狀態
     gameWon = false;
     
-    // 清除所有玩家
-    players = {};
+    // 分離人類玩家和 AI 玩家
+    const humanPlayers = {};
+    for (let id in players) {
+        if (!players[id].isAI) {
+            humanPlayers[id] = players[id];
+        }
+    }
     
     // 切換到下一張地圖
     currentMapTheme = (currentMapTheme + 1) % MAP_THEMES.length;
@@ -552,6 +553,28 @@ function transitionToNextMap() {
     
     // 重新生成地圖
     generateMap();
+    
+    // 重新生成所有玩家
+    players = {};
+    
+    // 重新生成人類玩家（找安全位置重生）
+    for (let id in humanPlayers) {
+        const p = humanPlayers[id];
+        const safe = findSafeSpawn();
+        players[id] = {
+            ...p,
+            x: safe.x,
+            y: safe.y,
+            hp: 100,
+            targetX: 0,
+            targetY: 0,
+            isMoving: false,
+            lastFire: 0,
+            frozenUntil: 0,
+            vx: 0,
+            vy: 0,
+        };
+    }
     
     // 重新生成 AI 坦克
     spawnAITanks(3);
@@ -568,7 +591,7 @@ function transitionToNextMap() {
     io.emit('map:reset', {
         walls: walls,
         capturePoints: capturePoints,
-        players: {},
+        players: players,
         theme: { name: theme.name, bg: theme.bg, gridColor: theme.gridColor }
     });
 }
