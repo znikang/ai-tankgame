@@ -834,6 +834,30 @@ io.on('connection', (socket) => {
         }
     });
 
+    // ---- Auth Helper ----
+
+    async function authenticateSocket(socket, data) {
+        const { token } = data || {};
+        if (!token) {
+            return { success: false, message: 'Authentication required', username: null };
+        }
+
+        let username = null;
+        try {
+            if (redisAvailable) {
+                username = await redis.get(`session:${token}`);
+            }
+        } catch (err) {
+            console.error(`Auth error: ${err.message}`);
+        }
+
+        if (!username) {
+            return { success: false, message: 'Session expired', username: null };
+        }
+
+        return { success: true, username };
+    }
+
     // ---- Account Events ----
 
     socket.on('account:changePassword', async (data) => {
