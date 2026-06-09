@@ -21,8 +21,8 @@ let redisAvailable = false;
 
 try {
     redis = new Redis({
-        host: 'localhost',
-        port: 6379,
+        host: process.env.REDIS_HOST || 'localhost',
+        port: parseInt(process.env.REDIS_PORT || '6379', 10),
         maxRetriesPerRequest: 3,
         lazyConnect: true,
     });
@@ -196,7 +196,6 @@ function updateCapturePoints() {
             cp.captureStartTime = null;
         } else if (ownerInRange && enemiesInRange.length > 0) {
             // Both owner and enemies in range — owner holds, but enemies can steal
-            // Enemies start/continue stealing; owner's presence doesn't cancel it
             const enemy = enemiesInRange[0];
             if (cp.capturingPlayerId !== enemy.id) {
                 cp.capturingPlayerId = enemy.id;
