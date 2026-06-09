@@ -57,6 +57,17 @@ process.on('SIGTERM', () => {
 
 const authRateLimits = new Map();
 
+function cleanupAuthRateLimits() {
+    const now = Date.now();
+    for (const [socketId, entry] of authRateLimits.entries()) {
+        if (now > entry.resetTime) {
+            authRateLimits.delete(socketId);
+        }
+    }
+}
+
+setInterval(cleanupAuthRateLimits, 60000);
+
 function checkAuthRateLimit(socketId) {
     const now = Date.now();
     const entry = authRateLimits.get(socketId);
@@ -586,6 +597,7 @@ function transitionToNextMap() {
     
     // 重新生成 AI 坦克
     spawnAITanks(3);
+    weaponDrops = [];
     
     // 重新分配點位讓下一局不同一點
     capturePoints = [
@@ -1120,7 +1132,8 @@ function aiFire(aiPlayer, target) {
     }
 }
 
-setInterval(() => {
+setInterval(async () => {
+    try {
     if (Object.keys(players).length === 0) return;
 
     for (let id in players) {
@@ -1276,7 +1289,7 @@ setInterval(() => {
             if (dist < 20) {
                 p.hp -= b.damage;
                 explosions.push({ x: b.x, y: b.y, life: 1.0 });
-                if (b.isFreeze && p.isAI) {
+  if (b.isFreeze) {
                     p.frozenUntil = Date.now() + 2000;
                 }
                 bullets.splice(i, 1);
@@ -1329,12 +1342,6 @@ setInterval(() => {
                         getPlayerStats(victimUsername).then(vStats => {
                             updatePlayerStats(victimUsername, { deaths: vStats.deaths + 1, score: vStats.score - 10 });
                         });
-                        const victimSocket = io.sockets.sockets.get(victimId);
-                        if (victimSocket) {
-                            getPlayerStats(victimUsername).then(s => {
-                                victimSocket.emit('game:statsUpdate', { username: victimUsername, ...s });
-                            });
-                        }
                     }
                 }
                 break;
@@ -1356,23 +1363,24 @@ setInterval(() => {
         for (let di = weaponDrops.length - 1; di >= 0; di--) {
             const drop = weaponDrops[di];
             const dist = Math.sqrt((player.x - drop.x) ** 2 + (player.y - drop.y) ** 2);
-            if (dist < 25) {
-                    weaponDrops.splice(di, 1);
 
-                    if (drop.type === 'health') {
-                        player.hp = Math.min(100, player.hp + 30);
-                        const socket = io.sockets.sockets.get(pi);
-                        if (socket) {
-                            socket.emit('weaponPickup', { weapon: 'health', name: '+30 HP' });
-                        }
-                    } else {
-                        player.weapon = drop.type;
-                        const socket = io.sockets.sockets.get(pi);
-                        if (socket) {
-                            socket.emit('weaponPickup', { weapon: drop.type, name: WEAPON_NAMES[drop.type] });
-                        }
+            if (dist < 25) {
+                weaponDrops.splice(di, 1);
+
+                if (drop.type === 'health') {
+                    player.hp = Math.min(100, player.hp + 30);
+                    const socket = io.sockets.sockets.get(pi);
+                    if (socket) {
+                        socket.emit('weaponPickup', { weapon: 'health', name: '+30 HP' });
+                    }
+                } else {
+                    player.weapon = drop.type;
+                    const socket = io.sockets.sockets.get(pi);
+                    if (socket) {
+                        socket.emit('weaponPickup', { weapon: drop.type, name: WEAPON_NAMES[drop.type] });
                     }
                 }
+            }
         }
     }
 
@@ -1410,6 +1418,9 @@ setInterval(() => {
         capturePoints: cpData,
         theme: MAP_THEMES[currentMapTheme],
     });
+    } catch (err) {
+        console.error('Game loop error:', err);
+    }
 }, 16);
 
 server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
