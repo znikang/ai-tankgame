@@ -1115,127 +1115,82 @@ setInterval(() => {
                 .map(cp => ({ cp, dist: Math.sqrt((cp.x - p.x) ** 2 + (cp.y - p.y) ** 2) }))
                 .sort((a, b) => a.dist - b.dist)[0];
 
-                    // If AI owns a CP — defend and patrol
-                    if (ownedCP) {
-                        const distToOwned = Math.sqrt((ownedCP.x - p.x) ** 2 + (ownedCP.y - p.y) ** 2);
-                        
-                        // Priority 1: Defend against nearby enemies
-                        let threat = null;
-                        let minDistThreat = Infinity;
-                        for (let pid in players) {
-                            const other = players[pid];
-                            if (other && other.hp > 0 && !other.isAI && Math.sqrt((other.x - p.x) ** 2 + (other.y - p.y) ** 2) < 450) {
-                                const d = Math.sqrt((other.x - p.x) ** 2 + (other.y - p.y) ** 2);
-                                if (d < minDistThreat) {
-                                    minDistThreat = d;
-                                    threat = other;
-                                }
-                            }
-                        }
+            // If AI owns a CP — patrol around it (not on top, so enemies can challenge)
+            if (ownedCP) {
+                const distToOwned = Math.sqrt((ownedCP.x - p.x) ** 2 + (ownedCP.y - p.y) ** 2);
+                if (distToOwned > ownedCP.radius * 2.5) {
+                    // Too far — return to defend
+                    p.angle = Math.atan2(ownedCP.y - p.y, ownedCP.x - p.x);
+                    p.isMoving = true;
+                    moveTank(p, p.angle, speedMult);
+                } else if (nearestEnemyCP && nearestEnemyCP.dist < 400) {
+                    // Enemy nearby — rush to defend that CP
+                    const angleToEnemy = Math.atan2(nearestEnemyCP.cp.y - p.y, nearestEnemyCP.cp.x - p.x);
+                    p.angle = angleToEnemy;
+                    p.isMoving = true;
+                    moveTank(p, p.angle, speedMult);
+                    aiFire(p, { x: nearestEnemyCP.cp.x, y: nearestEnemyCP.cp.y });
+                } else {
+                    // Patrol around the CP in a circle — stays in range but keeps moving
+                    const patrolAngle = Date.now() / 1500 + (p.id.charCodeAt(2) || 0);
+                    const patrolRadius = ownedCP.radius * 0.7;
+                    const tx = ownedCP.x + Math.cos(patrolAngle) * patrolRadius;
+                    const ty = ownedCP.y + Math.sin(patrolAngle) * patrolRadius;
+                    p.angle = Math.atan2(ty - p.y, tx - p.x);
+                    p.isMoving = true;
+                    moveTank(p, p.angle, speedMult * 0.6);
+                }
+            } else {
+                // AI has no CP — look for unowned or enemy CPs to capture
+                let targetCP = capturePoints.find(cp => cp.ownerId === null);
+                if (!targetCP && nearestEnemyCP) {
+                    targetCP = nearestEnemyCP.cp;
+                }
 
-                        if (threat) {
-                            // Engage threat
-                            p.angle = Math.atan2(threat.y - p.y, threat.x - p.x);
-                            p.isMoving = true;
-                            const distToThreat = minDistThreat;
-                            if (distToThreat > 300) {
-                                moveTank(p, p.angle, speedMult);
-                            } else if (distToThreat > 120) {
-                                // Strafe around threat
-                                const strafeAngle = p.angle + (p.strafeDir || 1) * Math.PI / 2.5;
-                                moveTank(p, strafeAngle, 0.8 * speedMult);
-                            } else {
-                                // Back up slightly while firing if too close
-                                const backAngle = p.angle + Math.PI;
-                                moveTank(p, backAngle, speedMult);
-                            }
-                            aiFire(p, threat);
-                        } else if (distToOwned > ownedCP.radius * 2.5) {
-                            // Too far — return to defend home base
-                            p.angle = Math.atan2(ownedCP.y - p.y, ownedCP.x - p.x);
+                if (targetCP) {
+                    const distToCP = Math.sqrt((targetCP.x - p.x) ** 2 + (targetCP.y - p.y) ** 2);
+                    
+                    // If there's a combat target nearby, fight first
+                    let combatTarget = getAITarget(p, true);
+                    if (combatTarget && Math.sqrt((combatTarget.x - p.x) ** 2 + (combatTarget.y - p.y) ** 2) < 250) {
+                        // Engage in combat
+                        let target = combatTarget;
+                        const distToTarget = Math.sqrt((target.x - p.x) ** 2 + (target.y - p.y) ** 2);
+                        if (distToTarget > 300) {
+                            p.angle = Math.atan2(target.y - p.y, target.x - p.x);
                             p.isMoving = true;
                             moveTank(p, p.angle, speedMult);
-                        } else if (distToOwned < 300) {
-                            // Patrol around the CP - more active patrolling
-                            const patrolAngle = Date.now() / 1200 + (p.id.charCodeAt(2) || 0);
-                            const patrolRadius = ownedCP.radius * 0.9;
-                            const tx = ownedCP.x + Math.cos(patrolAngle) * patrolRadius;
-                            const ty = ownedCP.y + Math.sin(patrolAngle) * patrolRadius;
-                            p.angle = Math.atan2(ty - p.y, tx - p.x);
+                        } else if (distToTarget > 120) {
+                            const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
+                            p.angle = angleToTarget;
+                            const strafeAngle = angleToTarget + (p.strafeDir || 1) * Math.PI / 2.5;
                             p.isMoving = true;
-                            moveTank(p, p.angle, speedMult * 0.7);
+                            moveTank(p, strafeAngle, 0.7 * speedMult);
                         } else {
-                            // Stand still on the point to ensure capture
-                            p.isMoving = false;
+                            const angleToTarget = Math.atan2(target.y - p.y, target.x - p.x);
+                            p.angle = angleToTarget;
+                            const backAngle = angleToTarget + Math.PI;
+                            p.isMoving = true;
+                            moveTank(p, backAngle, speedMult);
                         }
+                        aiFire(p, target);
+                        if (Math.random() < 0.01) {
+                            p.strafeDir = p.strafeDir === 1 ? -1 : 1;
+                        }
+                    } else if (distToCP > 150) {
+                        // Move toward CP
+                        p.angle = Math.atan2(targetCP.y - p.y, targetCP.x - p.x);
+                        p.isMoving = true;
+                        moveTank(p, p.angle, speedMult);
                     } else {
-                        // AI has no CP — find best targets (Human or other AI's CPs)
-                        let targetCP = null;
-                        let minTargetDist = Infinity;
-
-                        // Check for neutral points first
-                        for (const cp of capturePoints) {
-                            if (cp.ownerId === null) {
-                                const d = Math.sqrt((cp.x - p.x) ** 2 + (cp.y - p.y) ** 2);
-                                if (d < minTargetDist) {
-                                    minTargetDist = d;
-                                    targetCP = cp;
-                                }
-                            }
-                        }
-
-                        // If no neutral points, target nearest enemy point
-                        if (!targetCP) {
-                            for (const cp of capturePoints) {
-                                if (cp.ownerId !== null && cp.ownerId !== p.id) {
-                                    const d = Math.sqrt((cp.x - p.x) ** 2 + (cp.y - p.y) ** 2);
-                                    if (d < minTargetDist) {
-                                        minTargetDist = d;
-                                        targetCP = cp;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Combat target check (always prioritize nearby enemies over CPs)
-                        let combatTarget = getAITarget(p, true);
-                        if (combatTarget && Math.sqrt((combatTarget.x - p.x) ** 2 + (combatTarget.y - p.y) ** 2) < 350) {
-                            const dToCombat = Math.sqrt((combatTarget.x - p.x) ** 2 + (combatTarget.y - p.y) ** 2);
-                            if (dToCombat > 300) {
-                                p.angle = Math.atan2(combatTarget.y - p.y, combatTarget.x - p.x);
-                                p.isMoving = true;
-                                moveTank(p, p.angle, speedMult);
-                            } else if (dToCombat > 130) {
-                                const aToT = Math.atan2(combatTarget.y - p.y, combatTarget.x - p.x);
-                                p.angle = aToT;
-                                moveTank(p, aToT + (p.strafeDir || 1) * Math.PI / 2.5, 0.8 * speedMult);
-                            } else {
-                                p.angle = Math.atan2(combatTarget.y - p.y, combatTarget.x - p.x);
-                                moveTank(p, p.angle + Math.PI, speedMult);
-                            }
-                            aiFire(p, combatTarget);
-                        } else if (targetCP) {
-                            const distToCP = Math.sqrt((targetCP.x - p.x) ** 2 + (targetCP.y - p.y) ** 2);
-                            if (distToCP > 180) {
-                                p.angle = Math.atan2(targetCP.y - p.y, targetCP.x - p.x);
-                                p.isMoving = true;
-                                moveTank(p, p.angle, speedMult);
-                            } else if (distToCP > 60) {
-                                // Move to specific spot on CP (not center)
-                                const tx = targetCP.x + Math.cos(Date.now() / 1000) * targetCP.radius;
-                                const ty = targetCP.y + Math.sin(Date.now() / 1000) * targetCP.radius;
-                                p.angle = Math.atan2(ty - p.y, tx - p.x);
-                                moveTank(p, p.angle, speedMult);
-                            } else {
-                                // Arrived at CP — stand still to capture
-                                p.isMoving = false;
-                            }
-                        } else {
-                            // No CPs available — idle
-                            p.isMoving = false;
-                        }
+                        // Arrived at CP — stand still to capture
+                        p.isMoving = false;
                     }
-
+                } else {
+                    // No CPs available — idle
+                    p.isMoving = false;
+                }
+            }
         } else if (p.isMoving && p.targetX !== 0) {
             const distToTarget = Math.sqrt((p.targetX - p.x) ** 2 + (p.targetY - p.y) ** 2);
             if (distToTarget < 10) {
