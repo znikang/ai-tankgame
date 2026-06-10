@@ -310,15 +310,29 @@ function clampToMap(x, y) {
 
 // Helper: find a valid (non-wall) spawn position within map bounds
 function findSafeSpawn() {
-    for (let attempt = 0; attempt < 100; attempt++) {
+    for (let attempt = 0; attempt < 200; attempt++) {
         const x = Math.random() * (MAP_W - 2 * RADIUS) + RADIUS;
         const y = Math.random() * (MAP_H - 2 * RADIUS) + RADIUS;
         if (!checkWallCollision(x, y, RADIUS)) {
             return { x, y };
         }
     }
-    const spawn = AI_SPAWNS[0];
-    return clampToMap(spawn.x, spawn.y);
+    // Fallback: try each AI_SPAWN position with a small random offset
+    for (const sp of AI_SPAWNS) {
+        for (let r = 0; r < 20; r++) {
+            const ox = (Math.random() - 0.5) * GRID;
+            const oy = (Math.random() - 0.5) * GRID;
+            const px = sp.x + ox;
+            const py = sp.y + oy;
+            if (px >= RADIUS && px <= MAP_W - RADIUS && py >= RADIUS && py <= MAP_H - RADIUS) {
+                if (!checkWallCollision(px, py, RADIUS)) {
+                    return { x: px, y: py };
+                }
+            }
+        }
+    }
+    // Absolute last resort: center of map
+    return clampToMap(MAP_W / 2, MAP_H / 2);
 }
 
 // Generate random map with grid-based walls
@@ -566,6 +580,7 @@ function transitionToNextMap() {
         }
     }
     
+    
     // 切換到下一張地圖
     currentMapTheme = (currentMapTheme + 1) % MAP_THEMES.length;
     const theme = MAP_THEMES[currentMapTheme];
@@ -576,7 +591,7 @@ function transitionToNextMap() {
     // 重新生成所有玩家
     players = {};
     
-    // 重新生成人類玩家（找安全位置重生）
+    // 重新生成人類玩家（找安全位置重生，武器重置為 basic）
     for (let id in humanPlayers) {
         const p = humanPlayers[id];
         const safe = findSafeSpawn();
@@ -585,6 +600,7 @@ function transitionToNextMap() {
             x: safe.x,
             y: safe.y,
             hp: 100,
+            weapon: 'basic',
             targetX: 0,
             targetY: 0,
             isMoving: false,
