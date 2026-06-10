@@ -453,6 +453,28 @@ function scheduleEarthquake() {
 
 function triggerEarthquake() {
     let movedCount = 0;
+    const cols = Math.floor(MAP_W / GRID);
+    const rows = Math.floor(MAP_H / GRID);
+
+    // Rebuild spawn-reserved grid so we know which cells to protect
+    const cx = Math.floor(cols / 2), cy = Math.floor(rows / 2);
+    const reserved = new Set();
+    for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+            const distToCenter = Math.abs(c - cx) + Math.abs(r - cy);
+            if (distToCenter < 4) { reserved.add(`${c},${r}`); continue; }
+            if (c < 4 && r < 4) { reserved.add(`${c},${r}`); continue; }
+            if (c > cols - 5 && r < 4) { reserved.add(`${c},${r}`); continue; }
+            if (c < 4 && r > rows - 5) { reserved.add(`${c},${r}`); continue; }
+            if (c > cols - 5 && r > rows - 5) { reserved.add(`${c},${r}`); continue; }
+            for (const sp of AI_SPAWNS) {
+                const sc = Math.floor(sp.x / GRID);
+                const sr = Math.floor(sp.y / GRID);
+                if (Math.abs(c - sc) < 3 && Math.abs(r - sr) < 3) { reserved.add(`${c},${r}`); break; }
+            }
+        }
+    }
+
     for (let i = 0; i < walls.length; i++) {
         const wall = walls[i];
         if (!wall.destructible) continue;
@@ -462,6 +484,12 @@ function triggerEarthquake() {
         const newY = wall.y + shiftY * GRID;
         const clampedX = Math.max(0, Math.min(MAP_W - GRID, newX));
         const clampedY = Math.max(0, Math.min(MAP_H - GRID, newY));
+
+        // Check if the new position is in a spawn-reserved zone — if so, don't move
+        const newCol = Math.round(clampedX / GRID);
+        const newRow = Math.round(clampedY / GRID);
+        if (reserved.has(`${newCol},${newRow}`)) continue;
+
         wall.x = clampedX;
         wall.y = clampedY;
         movedCount++;
