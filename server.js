@@ -596,6 +596,17 @@ async function handleVictory(username) {
 }
 
 function transitionToNextMap() {
+    // 檢查是否還有活躍人類玩家
+    let humanCount = 0;
+    for (const id in players) {
+        if (!players[id].isAI && players[id].hp > 0) humanCount++;
+    }
+    if (humanCount === 0) {
+        console.log('No active players, skipping map transition');
+        gameWon = false;
+        return;
+    }
+    
     console.log("Transitioning to next map...");
     
     // 重置遊戲狀態
@@ -619,8 +630,9 @@ function transitionToNextMap() {
     
     // 重新生成所有玩家
     players = {};
-    
-    // 重新生成人類玩家（找安全位置重生，武器重置為 basic）
+    bullets = [];
+    explosions = [];
+    weaponDrops = [];
     for (let id in humanPlayers) {
         const p = humanPlayers[id];
         const safe = findSafeSpawn();
@@ -1079,6 +1091,13 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
+        // 移除該玩家的所有子彈
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            if (bullets[i].ownerId === socket.id) {
+                bullets.splice(i, 1);
+            }
+        }
+
         // Reset CPs owned by this player
         for (const cp of capturePoints) {
             if (cp.ownerId === socket.id) {
