@@ -150,6 +150,7 @@ let currentMapTheme = 0; // 0-indexed into MAP_THEMES
 
 let capturePoints = [];
 let gameWon = false; // 防止重複觸發勝利
+let aiIdCounter = 0; // AI id 递增，避免 reset 後 id 混淆
 
 function initCapturePoints() {
     capturePoints = [
@@ -418,7 +419,7 @@ function generateMap() {
 function spawnAITanks(count) {
     for (let i = 0; i < count; i++) {
         const safe = findSafeSpawn();
-        const aiId = 'ai-' + i;
+        const aiId = 'ai-' + (aiIdCounter++);
         players[aiId] = {
             id: aiId,
             x: safe.x,
