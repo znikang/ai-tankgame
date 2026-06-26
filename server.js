@@ -566,11 +566,14 @@ async function updatePlayerStats(username, updates) {
     }
 }
 
-function emitStatsUpdate(socket, username) {
+async function emitStatsUpdate(socket, username) {
     if (!username) return;
-    getPlayerStats(username).then(stats => {
+    try {
+        const stats = await getPlayerStats(username);
         socket.emit('game:statsUpdate', { username, ...stats });
-    });
+    } catch (err) {
+        console.error(`emitStatsUpdate error for ${username}: ${err.message}`);
+    }
 }
 
 // 勝利邏輯與點位管理擴充
@@ -803,8 +806,8 @@ io.on('connection', (socket) => {
 
     socket.on('auth:resume', async (data) => {
         const { token } = data || {};
-        if (!token) {
-            return socket.emit('auth:resume', { success: false, username: null, message: 'Token required' });
+        if (!token || typeof token !== 'string' || token.trim().length < 8) {
+            return socket.emit('auth:resume', { success: false, username: null, message: 'Invalid token' });
         }
 
         let username = null;
@@ -1099,13 +1102,19 @@ io.on('connection', (socket) => {
         }
 
         // Reset CPs owned by this player
+        const releasedCPs = [];
         for (const cp of capturePoints) {
             if (cp.ownerId === socket.id) {
                 cp.ownerId = null;
                 cp.capturingPlayerId = null;
                 cp.captureStartTime = null;
+                releasedCPs.push(cp.id);
                 console.log(`CP ${cp.id} lost ownership (player ${socket.id} disconnected)`);
             }
+        }
+
+        if (releasedCPs.length > 0) {
+            io.emit('cp:released', { cpIds: releasedCPs, reason: 'playerDisconnect' });
         }
 
         delete players[socket.id];
@@ -1391,21 +1400,26 @@ setInterval(async () => {
                     const killerUsername = killerPlayer ? killerPlayer.username : null;
 
                     if (killerUsername && redisAvailable) {
-                        getPlayerStats(killerUsername).then(kStats => {
-                            updatePlayerStats(killerUsername, { kills: kStats.kills + 1, score: kStats.score + 5 });
-                        });
-                        const killerSocket = io.sockets.sockets.get(killerSocketId);
-                        if (killerSocket) {
-                            getPlayerStats(killerUsername).then(s => {
-                                killerSocket.emit('game:statsUpdate', { username: killerUsername, ...s });
-                            });
+                        try {
+                            const kStats = await getPlayerStats(killerUsername);
+                            await updatePlayerStats(killerUsername, { kills: kStats.kills + 1, score: kStats.score + 5 });
+                            const killerSocket = io.sockets.sockets.get(killerSocketId);
+                            if (killerSocket) {
+                                const updatedStats = await getPlayerStats(killerUsername);
+                                killerSocket.emit('game:statsUpdate', { username: killerUsername, ...updatedStats });
+                            }
+                        } catch (err) {
+                            console.error(`Death stat update error (killer ${killerUsername}): ${err.message}`);
                         }
                     }
 
                     if (victimUsername && victimUsername !== killerUsername && redisAvailable) {
-                        getPlayerStats(victimUsername).then(vStats => {
-                            updatePlayerStats(victimUsername, { deaths: vStats.deaths + 1, score: vStats.score - 10 });
-                        });
+                        try {
+                            const vStats = await getPlayerStats(victimUsername);
+                            await updatePlayerStats(victimUsername, { deaths: vStats.deaths + 1, score: vStats.score - 10 });
+                        } catch (err) {
+                            console.error(`Death stat update error (victim ${victimUsername}): ${err.message}`);
+                        }
                     }
                 }
                 break;
