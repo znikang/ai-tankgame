@@ -171,8 +171,7 @@ function updateCapturePoints() {
         // Check which players are inside the CP radius
         const playersInRange = [];
 
-        for (const id in players) {
-            const p = players[id];
+        for (const [id, p] of Object.entries(players)) {
             if (!p || p.hp <= 0) continue;
 
             const dist = Math.sqrt((p.x - cp.x) ** 2 + (p.y - cp.y) ** 2);
@@ -602,8 +601,8 @@ async function handleVictory(username) {
 function transitionToNextMap() {
     // 檢查是否還有活躍人類玩家
     let humanCount = 0;
-    for (const id in players) {
-        if (!players[id].isAI && players[id].hp > 0) humanCount++;
+    for (const [id, p] of Object.entries(players)) {
+        if (!p.isAI && p.hp > 0) humanCount++;
     }
     if (humanCount === 0) {
         console.log('No active players, skipping map transition');
@@ -618,9 +617,9 @@ function transitionToNextMap() {
     
     // 分離人類玩家和 AI 玩家
     const humanPlayers = {};
-    for (let id in players) {
-        if (!players[id].isAI) {
-            humanPlayers[id] = players[id];
+    for (const [id, p] of Object.entries(players)) {
+        if (!p.isAI) {
+            humanPlayers[id] = p;
         }
     }
     
@@ -637,8 +636,7 @@ function transitionToNextMap() {
     bullets = [];
     explosions = [];
     weaponDrops = [];
-    for (let id in humanPlayers) {
-        const p = humanPlayers[id];
+    for (const [id, p] of Object.entries(humanPlayers)) {
         const safe = findSafeSpawn();
         players[id] = {
             ...p,
@@ -745,7 +743,7 @@ io.on('connection', (socket) => {
         targetX: 0,
         targetY: 0,
         hp: 100,
-        color: '#' + (Math.floor(Math.random() * 0xFFFFFF)).toString(16).padStart(6, '0'),
+        color: '#' + Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, '0'),
         isMoving: false,
         weapon: 'basic',
         lastFire: 0,
@@ -1188,9 +1186,8 @@ function moveTank(p, angle, speedMult) {
 function getAITarget(aiPlayer, includeAI = true) {
     let target = null;
     let minDist = Infinity;
-    for (let otherId in players) {
+    for (const [otherId, other] of Object.entries(players)) {
         if (otherId === aiPlayer.id) continue;
-        const other = players[otherId];
         if (!other || other.hp <= 0) continue;
         if (!includeAI && other.isAI) continue;
         const d = Math.sqrt((aiPlayer.x - other.x) ** 2 + (aiPlayer.y - other.y) ** 2);
@@ -1253,8 +1250,7 @@ setInterval(async () => {
     try {
     if (Object.keys(players).length === 0) return;
 
-    for (let id in players) {
-        const p = players[id];
+    for (const [id, p] of Object.entries(players)) {
         if (!p || p.hp <= 0) continue;
 
         if (p.isAI) {
@@ -1399,8 +1395,7 @@ setInterval(async () => {
         if (wallHit) { bullets.splice(i, 1); continue; }
 
         // Player collision — includes AI vs AI
-        for (let pid in players) {
-            const p = players[pid];
+        for (const [pid, p] of Object.entries(players)) {
             if (!p || p.hp <= 0 || pid === b.ownerId) continue;
             const dist = Math.sqrt((b.x - p.x) ** 2 + (b.y - p.y) ** 2);
             if (dist < 20) {
@@ -1478,8 +1473,7 @@ setInterval(async () => {
     }
 
     // Weapon pickup detection
-    for (let pi in players) {
-        const player = players[pi];
+    for (const [pi, player] of Object.entries(players)) {
         if (!player || player.hp <= 0) continue;
 
         for (let di = weaponDrops.length - 1; di >= 0; di--) {
@@ -1508,8 +1502,7 @@ setInterval(async () => {
 
     // Emit gameState with auth info and capture points
     const authInfo = {};
-    for (let id in players) {
-        const p = players[id];
+    for (const [id, p] of Object.entries(players)) {
         if (p.isAI) {
             authInfo[id] = null;
         } else {
