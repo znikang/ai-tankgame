@@ -1394,6 +1394,23 @@ setInterval(async () => {
         }
         if (wallHit) { bullets.splice(i, 1); continue; }
 
+        // Bullet-to-bullet collision — cancel opposing bullets
+        for (let j = bullets.length - 1; j >= 0; j--) {
+            if (j === i) continue;
+            const other = bullets[j];
+            if (other.ownerId === b.ownerId) continue; // same team, don't cancel
+            const dx = b.x - other.x;
+            const dy = b.y - other.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < b.radius + other.radius + 5) {
+                explosions.push({ x: (b.x + other.x) / 2, y: (b.y + other.y) / 2, life: 0.5 });
+                bullets.splice(j, 1);
+                bullets.splice(i, 1);
+                wallHit = true; // prevent further processing
+                break;
+            }
+        }
+        if (wallHit) continue;
         // Player collision — includes AI vs AI
         for (const [pid, p] of Object.entries(players)) {
             if (!p || p.hp <= 0 || pid === b.ownerId) continue;
