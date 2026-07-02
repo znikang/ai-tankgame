@@ -446,6 +446,7 @@ generateMap();
 spawnAITanks(3);
 
 function scheduleEarthquake() {
+    if (earthquakeTimer) clearTimeout(earthquakeTimer);
     const delay = EARTHQUAKE_MIN + Math.random() * (EARTHQUAKE_MAX - EARTHQUAKE_MIN);
     earthquakeTimer = setTimeout(() => {
         triggerEarthquake();
