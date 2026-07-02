@@ -661,13 +661,56 @@ function transitionToNextMap() {
     weaponDrops = [];
     
     // 重新分配點位讓下一局不同一點
-    capturePoints = [
-        { id: 'cp-1', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
-        { id: 'cp-2', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
-        { id: 'cp-3', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
-        { id: 'cp-4', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
-        { id: 'cp-5', x: Math.random() * (MAP_W - 400) + 200, y: Math.random() * (MAP_H - 400) + 200, radius: CAPTURE_RADIUS * 1.5, ownerId: null, regionTag: 'dynamic', capturingPlayerId: null, captureStartTime: null },
-    ];
+    function generateCapturePoints() {
+        const minDist = CAPTURE_RADIUS * 2 + 40; // 最小間距
+        const attempts = 200;
+        for (let retry = 0; retry < 50; retry++) {
+            const candidates = [];
+            let ok = true;
+            // Generate 4 corner-ish CPs at fixed regions
+            const regions = [
+                { rx: 0.2, ry: 0.2 },
+                { rx: 0.8, ry: 0.2 },
+                { rx: 0.2, ry: 0.8 },
+                { rx: 0.8, ry: 0.8 },
+            ];
+            for (let i = 0; i < 4; i++) {
+                const r = regions[i];
+                const x = r.rx * MAP_W + (Math.random() - 0.5) * 200;
+                const y = r.ry * MAP_H + (Math.random() - 0.5) * 200;
+                candidates.push({ x, y, regionTag: `region-${i}` });
+            }
+            // Center CP
+            const cx = MAP_W / 2 + (Math.random() - 0.5) * 200;
+            const cy = MAP_H / 2 + (Math.random() - 0.5) * 200;
+            candidates.push({ x: cx, y: cy, regionTag: 'center' });
+
+            // Verify minimum distances
+            for (let i = 0; i < candidates.length && ok; i++) {
+                for (let j = i + 1; j < candidates.length && ok; j++) {
+                    const dx = candidates[i].x - candidates[j].x;
+                    const dy = candidates[i].y - candidates[j].y;
+                    if (Math.sqrt(dx * dx + dy * dy) < minDist) ok = false;
+                }
+            }
+            if (ok) {
+                return candidates.map((c, i) => ({
+                    id: 'cp-' + (i + 1),
+                    x: c.x,
+                    y: c.y,
+                    radius: i < 4 ? CAPTURE_RADIUS : CAPTURE_RADIUS * 1.5,
+                    ownerId: null,
+                    regionTag: c.regionTag,
+                    capturingPlayerId: null,
+                    captureStartTime: null,
+                }));
+            }
+        }
+        // Fallback: use initial static positions
+        initCapturePoints();
+        return capturePoints;
+    }
+    capturePoints = generateCapturePoints();
 
     io.emit('map:reset', {
         walls: walls,
