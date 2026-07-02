@@ -1094,9 +1094,9 @@ io.on('connection', (socket) => {
 
         // Track shots fired stat
         if (loggedInUsername && redisAvailable) {
-            getPlayerStats(loggedInUsername).then(stats => {
-                updatePlayerStats(loggedInUsername, { shots_fired: stats.shots_fired + 1 });
-            });
+            getPlayerStats(loggedInUsername)
+                .then(stats => updatePlayerStats(loggedInUsername, { shots_fired: stats.shots_fired + 1 }))
+                .catch(err => console.error(`Fire stat update error: ${err.message}`));
         }
 
         // Create bullets based on weapon type
