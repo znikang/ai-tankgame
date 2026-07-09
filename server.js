@@ -1418,9 +1418,9 @@ setInterval(async () => {
             if (dist < 20) {
                 p.hp -= b.damage;
                 explosions.push({ x: b.x, y: b.y, life: 1.0 });
-  if (b.isFreeze) {
-                    p.frozenUntil = Date.now() + 2000;
-                }
+                                if (b.isFreeze) {
+                                    p.frozenUntil = Date.now() + 2000;
+                                }
                 bullets.splice(i, 1);
 
                 const killerSocketId = b.ownerId;
@@ -1556,3 +1556,4 @@ setInterval(async () => {
 }, 16);
 
 server.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+
